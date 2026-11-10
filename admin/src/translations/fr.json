@@ -1,0 +1,5 @@
+{
+  "plugin.name": "MessageGate",
+  "plugin.subtitle": "Messages WhatsApp, Telegram et SMS avec suivi de livraison",
+  "placeholder": "L'API serveur est prête. L'interface d'administration arrive bientôt."
+}
