@@ -35,11 +35,11 @@ const actionId = (action) => `plugin::${PLUGIN}.${action}`;
  * @returns {Promise<void>}
  */
 async function registerActions(strapi) {
-  await strapi
-    .service('admin::permission')
-    .actionProvider.registerMany(
-      ACTIONS.map((a) => ({ section: 'plugins', pluginName: PLUGIN, category: 'Magic MessageGate', ...a }))
-    );
+  await strapi.service('admin::permission').actionProvider.registerMany(
+    // The plugins section takes subCategory only; Strapi rejects `category` there
+    // (@strapi/admin validation/action-provider: "category should only be defined for the settings section").
+    ACTIONS.map((a) => ({ section: 'plugins', pluginName: PLUGIN, ...a }))
+  );
 }
 
 module.exports = { ACTIONS, actionId, registerActions, PLUGIN };

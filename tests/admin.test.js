@@ -112,6 +112,22 @@ test('permissions: the admin uses exactly the 14 server actions', () => {
   assert.deepEqual(actions, ACTIONS.map((a) => a.uid).sort());
 });
 
+test('permissions: registered actions match the Strapi 5 action-provider schema', async () => {
+  const { registerActions } = require('../server/src/permissions.js');
+  let registered;
+  const strapi = {
+    service: () => ({ actionProvider: { registerMany: async (list) => (registered = list) } }),
+  };
+  await registerActions(strapi);
+  assert.equal(registered.length, 14);
+  const allowed = new Set(['uid', 'section', 'pluginName', 'displayName', 'subCategory']);
+  for (const a of registered) {
+    assert.equal(a.section, 'plugins');
+    assert.match(a.uid, /^[a-z]([a-z|.|-]+)[a-z]$/);
+    for (const key of Object.keys(a)) assert.ok(allowed.has(key), `unexpected key ${key} (category is settings-only)`);
+  }
+});
+
 test('utils: list entries, template preview and SMS segments', async () => {
   const { validateListEntry } = await load('utils/lists.mjs');
   assert.equal(validateListEntry('country', 'DE', []), null);
