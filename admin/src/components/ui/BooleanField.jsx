@@ -26,7 +26,7 @@ export const BooleanField = ({ name, label, hint, error, checked, onCheckedChang
   const { formatMessage } = useIntl();
   return (
     <Field.Root name={name} hint={hint} error={error} maxWidth="320px">
-      <Flex justifyContent="space-between" alignItems="flex-end" gap={2}>
+      <Flex justifyContent="space-between" alignItems="flex-end" gap={2} minWidth={0}>
         <Field.Label>{label}</Field.Label>
       </Flex>
       <Toggle

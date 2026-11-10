@@ -256,7 +256,7 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
                 label={t('send.transactional', 'Transactional')}
                 hint={t(
                   'send.transactional.hint',
-                  'Order updates, codes and reminders the contact asked for. Marketing needs consent for the channel.'
+                  'Order updates, codes and reminders the contact asked for. With an authentication template it is sent without recorded consent.'
                 )}
                 checked={form.transactional}
                 onCheckedChange={(value) => set('transactional', value)}

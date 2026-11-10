@@ -28,6 +28,7 @@ import { MessageStatusBadge } from '../../components/ui/StatusBadge';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
 import { useMgRBAC } from '../../hooks/useMgRBAC';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { useT } from '../../hooks/useT';
 import { CHANNELS, MESSAGE_STATUSES, channelLabels, statusLabels } from '../../utils/channels';
 import { rangeFor } from '../../utils/format.mjs';
@@ -44,6 +45,7 @@ const RANGES = ['today', '7d', '30d', 'all'];
  */
 export const MessagesPage = () => {
   const t = useT();
+  const focus = useReturnFocus();
   const api = useApi();
   const rbac = useMgRBAC();
   const [{ query }, setQuery] = useQueryParams({ page: 1, pageSize: 25 });
@@ -87,7 +89,13 @@ export const MessagesPage = () => {
       busy={isLoading}
       primaryAction={
         rbac.messages.send ? (
-          <Button startIcon={<PaperPlane />} onClick={() => setSendOpen(true)}>
+          <Button
+            startIcon={<PaperPlane />}
+            onClick={() => {
+              focus.remember();
+              setSendOpen(true);
+            }}
+          >
             {t('messages.send', 'Send message')}
           </Button>
         ) : null
@@ -192,7 +200,13 @@ export const MessagesPage = () => {
                 {t('messages.empty.reset', 'Reset filters')}
               </Button>
             ) : rbac.messages.send ? (
-              <Button startIcon={<PaperPlane />} onClick={() => setSendOpen(true)}>
+              <Button
+                startIcon={<PaperPlane />}
+                onClick={() => {
+                  focus.remember();
+                  setSendOpen(true);
+                }}
+              >
                 {t('messages.sendTest', 'Send a test message')}
               </Button>
             ) : undefined
@@ -225,7 +239,14 @@ export const MessagesPage = () => {
             </Thead>
             <Tbody>
               {results.map((m) => (
-                <Tr key={m.id} onClick={() => setOpenId(m.id)} style={{ cursor: 'pointer' }}>
+                <Tr
+                  key={m.id}
+                  onClick={() => {
+                    focus.remember();
+                    setOpenId(m.id);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <Td>
                     <Typography textColor="neutral800" fontWeight="semiBold">
                       {m.recipient?.phoneMasked || t('messages.erased', 'Erased contact')}
@@ -262,7 +283,10 @@ export const MessagesPage = () => {
                       <IconButton
                         label={t('messages.open', 'Open details')}
                         variant="ghost"
-                        onClick={() => setOpenId(m.id)}
+                        onClick={() => {
+                          focus.remember();
+                          setOpenId(m.id);
+                        }}
                       >
                         <Eye />
                       </IconButton>
@@ -279,8 +303,25 @@ export const MessagesPage = () => {
         </Flex>
       )}
 
-      {openId ? <MessageDetailModal id={openId} onClose={() => setOpenId(null)} onChanged={reload} /> : null}
-      {sendOpen ? <SendMessageModal onClose={() => setSendOpen(false)} onSent={reload} /> : null}
+      {openId ? (
+        <MessageDetailModal
+          id={openId}
+          onClose={() => {
+            setOpenId(null);
+            focus.restore();
+          }}
+          onChanged={reload}
+        />
+      ) : null}
+      {sendOpen ? (
+        <SendMessageModal
+          onClose={() => {
+            setSendOpen(false);
+            focus.restore();
+          }}
+          onSent={reload}
+        />
+      ) : null}
     </SectionFrame>
   );
 };

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Badge, Box, Button, Flex, Grid, Status, Typography } from '@strapi/design-system';
+import { Box, Button, Flex, Grid, Status, Typography } from '@strapi/design-system';
 import { ArrowClockwise, Lightning, Pencil, Phone, Plus, Trash } from '@strapi/icons';
 import { useNotification } from '@strapi/strapi/admin';
 
@@ -12,6 +12,8 @@ import { useAction } from '../../hooks/useAction';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
 import { useMgRBAC } from '../../hooks/useMgRBAC';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
+import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { channelLabels, providerLabels } from '../../utils/channels';
 import { reasonText } from '../../utils/reasons';
@@ -113,10 +115,10 @@ const AccountCard = ({ account, rbac, onEdit, onChanged }) => {
             </Typography>
           </Flex>
           <Flex gap={2} wrap="wrap">
-            {account.isDefault ? <Badge variant="primary">{t('accounts.default', 'Default')}</Badge> : null}
-            {!account.isActive ? <Badge>{t('accounts.inactive', 'Inactive')}</Badge> : null}
+            {account.isDefault ? <ToneBadge tone="primary">{t('accounts.default', 'Default')}</ToneBadge> : null}
+            {!account.isActive ? <ToneBadge>{t('accounts.inactive', 'Inactive')}</ToneBadge> : null}
             {account.config?.coexistence ? (
-              <Badge variant="secondary">{t('accounts.coexistence', 'Business App')}</Badge>
+              <ToneBadge tone="secondary">{t('accounts.coexistence', 'Business App')}</ToneBadge>
             ) : null}
           </Flex>
         </Flex>
@@ -206,11 +208,18 @@ export const AccountsPage = () => {
   const api = useApi();
   const rbac = useMgRBAC();
   const [wizard, setWizard] = useState(null);
+  const focus = useReturnFocus();
   const loader = useCallback(() => api.get('/accounts'), [api]);
   const { data, error, isLoading, reload } = useLoad(loader);
 
   const connect = rbac.accounts.manage ? (
-    <Button startIcon={<Plus />} onClick={() => setWizard({ mode: 'create' })}>
+    <Button
+      startIcon={<Plus />}
+      onClick={() => {
+        focus.remember();
+        setWizard({ mode: 'create' });
+      }}
+    >
       {t('accounts.connect', 'Connect a channel')}
     </Button>
   ) : null;
@@ -242,7 +251,10 @@ export const AccountsPage = () => {
               <AccountCard
                 account={account}
                 rbac={rbac}
-                onEdit={() => setWizard({ mode: 'edit', account })}
+                onEdit={() => {
+                  focus.remember();
+                  setWizard({ mode: 'edit', account });
+                }}
                 onChanged={reload}
               />
             </Grid.Item>
@@ -254,7 +266,10 @@ export const AccountsPage = () => {
           mode={wizard.mode}
           account={wizard.account}
           hasDefault={(channel) => (data || []).some((a) => a.channel === channel && a.isDefault)}
-          onClose={() => setWizard(null)}
+          onClose={() => {
+            setWizard(null);
+            focus.restore();
+          }}
           onSaved={reload}
         />
       ) : null}

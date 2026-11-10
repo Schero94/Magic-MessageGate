@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Badge, Box, Button, Field, Flex, Grid, Modal, TextInput, Typography } from '@strapi/design-system';
+import { Box, Button, Field, Flex, Grid, Modal, TextInput, Typography } from '@strapi/design-system';
 import { ArrowLeft, Check, Cross, Eye, Message, Paperclip, PaperPlane, Phone } from '@strapi/icons';
 
 import { BooleanField } from '../../components/ui/BooleanField';
@@ -9,6 +9,7 @@ import { useAction } from '../../hooks/useAction';
 import { useApi } from '../../hooks/useApi';
 import { useEmbeddedSignup } from '../../hooks/useEmbeddedSignup';
 import { useLoad } from '../../hooks/useLoad';
+import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { apiError, errorMessage } from '../../utils/apiError';
 import { providerLabels } from '../../utils/channels';
@@ -534,7 +535,7 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
                           )}
                           <Typography>{stepNames[key] || key}</Typography>
                           {value !== 'ok' && value !== 'started' ? (
-                            <Badge variant="danger">{String(value)}</Badge>
+                            <ToneBadge tone="danger">{String(value)}</ToneBadge>
                           ) : null}
                         </Flex>
                       ))}

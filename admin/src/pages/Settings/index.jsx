@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import {
-  Badge,
   Box,
   Button,
   Field,
@@ -26,6 +25,7 @@ import { useAction } from '../../hooks/useAction';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
 import { useMgRBAC } from '../../hooks/useMgRBAC';
+import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { apiError } from '../../utils/apiError';
 import { BOUNDS, newRule, validateSettings } from '../../utils/settings.mjs';
@@ -319,10 +319,10 @@ export const SettingsPage = () => {
               <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
                 <BooleanField
                   name="requireConsent"
-                  label={t('settings.requireConsent', 'Require consent for non-transactional messages')}
+                  label={t('settings.requireConsent', 'Require consent before sending')}
                   hint={t(
                     'settings.requireConsent.hint',
-                    'Marketing and other messages need recorded consent per channel. Transactional messages are always allowed.'
+                    'Every message needs recorded consent for its channel. Only transactional login codes (authentication templates) are exempt.'
                   )}
                   checked={draft.requireConsent}
                   disabled={readOnly}
@@ -501,7 +501,7 @@ export const SettingsPage = () => {
               <Flex key={a.id} direction="column" alignItems="stretch" gap={2}>
                 <Flex gap={2} wrap="wrap">
                   <Typography fontWeight="semiBold">{a.name}</Typography>
-                  <Badge variant={HEALTH_VARIANT[a.health?.status] || 'neutral'}>
+                  <ToneBadge tone={HEALTH_VARIANT[a.health?.status] || 'neutral'}>
                     {
                       {
                         ok: t('accounts.health.ok', 'Connected'),
@@ -509,7 +509,7 @@ export const SettingsPage = () => {
                         unknown: t('accounts.health.unknown', 'Not tested yet'),
                       }[a.health?.status || 'unknown']
                     }
-                  </Badge>
+                  </ToneBadge>
                 </Flex>
                 <CopyField
                   name={`webhook-${a.id}`}

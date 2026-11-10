@@ -1,20 +1,9 @@
 import { useCallback, useState } from 'react';
-import {
-  Badge,
-  Box,
-  Button,
-  Field,
-  Flex,
-  Grid,
-  Modal,
-  ProgressBar,
-  TextInput,
-  Typography,
-} from '@strapi/design-system';
+import { Box, Button, Field, Flex, Grid, Modal, ProgressBar, TextInput, Typography } from '@strapi/design-system';
 import { ListSearch, PaperPlane, Plus } from '@strapi/icons';
 
 import { Notice } from '../../components/ui/Notice';
-import { ReachabilityBadge } from '../../components/ui/StatusBadge';
+import { ReachabilityBadge, ToneBadge } from '../../components/ui/StatusBadge';
 import { useAction } from '../../hooks/useAction';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
@@ -150,6 +139,16 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                         days: budget.cacheDays,
                       })}
                     </Typography>
+                    <Box>
+                      <Button
+                        variant="secondary"
+                        onClick={() => check(true)}
+                        loading={busy === 'remote'}
+                        disabled={left <= 0 || Boolean(busy)}
+                      >
+                        {t('lookup.remote', 'Check with Twilio')}
+                      </Button>
+                    </Box>
                   </Flex>
                 </Box>
               ) : null}
@@ -173,7 +172,7 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                           </Typography>
                           <Flex gap={2}>
                             <Typography>{typeLabel[result.type] || result.type || '–'}</Typography>
-                            {result.country ? <Badge>{result.country}</Badge> : null}
+                            {result.country ? <ToneBadge>{result.country}</ToneBadge> : null}
                           </Flex>
                         </Grid.Item>
                         <Grid.Item col={6} xs={12} direction="column" alignItems="flex-start">
@@ -234,16 +233,6 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
               </Button>
             </Modal.Close>
             <Flex gap={2} wrap="wrap" justifyContent="flex-end">
-              {budget?.enabled ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => check(true)}
-                  loading={busy === 'remote'}
-                  disabled={left <= 0 || Boolean(busy)}
-                >
-                  {t('lookup.remote', 'Check with Twilio (1 lookup)')}
-                </Button>
-              ) : null}
               <Button type="submit" startIcon={<ListSearch />} loading={busy === 'local'} disabled={Boolean(busy)}>
                 {t('lookup.check', 'Check')}
               </Button>

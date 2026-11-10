@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import {
-  Badge,
   Box,
   Button,
   Field,
@@ -20,11 +19,12 @@ import { Eye, ListSearch, Search, User } from '@strapi/icons';
 import { Pagination, useQueryParams } from '@strapi/strapi/admin';
 
 import { RelativeTime } from '../../components/ui/RelativeTime';
-import { ReachabilityBadge } from '../../components/ui/StatusBadge';
+import { ReachabilityBadge, ToneBadge } from '../../components/ui/StatusBadge';
 import { SectionFrame } from '../../components/ui/SectionFrame';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/States';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { useT } from '../../hooks/useT';
 import { CHANNELS, channelLabels } from '../../utils/channels';
 import { lastActivityAt } from '../../utils/contacts.mjs';
@@ -38,6 +38,7 @@ import { LookupModal } from './LookupModal';
  */
 export const ContactsPage = () => {
   const t = useT();
+  const focus = useReturnFocus();
   const api = useApi();
   const [{ query }, setQuery] = useQueryParams({ page: 1, pageSize: 25 });
   const [phoneInput, setPhoneInput] = useState(query.phone || '');
@@ -56,7 +57,13 @@ export const ContactsPage = () => {
   const results = data?.results || [];
 
   const lookupButton = (
-    <Button startIcon={<ListSearch />} onClick={() => setLookupOpen(true)}>
+    <Button
+      startIcon={<ListSearch />}
+      onClick={() => {
+        focus.remember();
+        setLookupOpen(true);
+      }}
+    >
       {t('contacts.lookup', 'Check a number')}
     </Button>
   );
@@ -143,7 +150,14 @@ export const ContactsPage = () => {
                 const last = lastActivityAt(c);
                 const granted = CHANNELS.filter((ch) => c.consent?.[ch]?.status === 'granted');
                 return (
-                  <Tr key={c.id} onClick={() => setOpenId(c.id)} style={{ cursor: 'pointer' }}>
+                  <Tr
+                    key={c.id}
+                    onClick={() => {
+                      focus.remember();
+                      setOpenId(c.id);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <Td>
                       <Typography fontWeight="semiBold" textColor="neutral800">
                         {c.phoneMasked || t('contacts.unreadable', 'Unreadable')}
@@ -152,7 +166,7 @@ export const ContactsPage = () => {
                     <Td>
                       <Flex gap={2} wrap="wrap">
                         <ReachabilityBadge value={c.whatsapp?.reachability} />
-                        {c.telegramLinked ? <Badge variant="secondary">{channels.telegram}</Badge> : null}
+                        {c.telegramLinked ? <ToneBadge tone="secondary">{channels.telegram}</ToneBadge> : null}
                       </Flex>
                     </Td>
                     <Td>
@@ -172,7 +186,10 @@ export const ContactsPage = () => {
                         <IconButton
                           label={t('contacts.open', 'Open contact')}
                           variant="ghost"
-                          onClick={() => setOpenId(c.id)}
+                          onClick={() => {
+                            focus.remember();
+                            setOpenId(c.id);
+                          }}
                         >
                           <Eye />
                         </IconButton>
@@ -190,10 +207,22 @@ export const ContactsPage = () => {
         </Flex>
       )}
 
-      {openId ? <ContactDetailModal id={openId} onClose={() => setOpenId(null)} onChanged={reload} /> : null}
+      {openId ? (
+        <ContactDetailModal
+          id={openId}
+          onClose={() => {
+            setOpenId(null);
+            focus.restore();
+          }}
+          onChanged={reload}
+        />
+      ) : null}
       {lookupOpen ? (
         <LookupModal
-          onClose={() => setLookupOpen(false)}
+          onClose={() => {
+            setLookupOpen(false);
+            focus.restore();
+          }}
           onOpenContact={(id) => {
             setLookupOpen(false);
             setOpenId(id);

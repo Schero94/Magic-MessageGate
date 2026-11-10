@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Badge, Box, Button, Checkbox, Dialog, Flex, Grid, Modal, Typography } from '@strapi/design-system';
+import { Box, Button, Checkbox, Dialog, Flex, Grid, Modal, Typography } from '@strapi/design-system';
 import { ArrowClockwise, Check, CheckCircle, Cross, Trash } from '@strapi/icons';
 import { ConfirmDialog } from '@strapi/strapi/admin';
 
@@ -7,7 +7,7 @@ import { ConfirmAction } from '../../components/ui/ConfirmAction';
 import { Notice } from '../../components/ui/Notice';
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { ErrorState, LoadingState } from '../../components/ui/States';
-import { MessageStatusBadge } from '../../components/ui/StatusBadge';
+import { MessageStatusBadge, ToneBadge } from '../../components/ui/StatusBadge';
 import { useAction } from '../../hooks/useAction';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
@@ -286,7 +286,9 @@ export const MessageDetailModal = ({ id, onClose, onChanged }) => {
                       borderWidth="1px"
                       borderColor="neutral150"
                     >
-                      <Badge variant={EVENT_VARIANT[event.type] || 'neutral'}>{events[event.type] || event.type}</Badge>
+                      <ToneBadge tone={EVENT_VARIANT[event.type] || 'neutral'}>
+                        {events[event.type] || event.type}
+                      </ToneBadge>
                       {event.code ? (
                         <Typography variant="pi" textColor="neutral700">
                           {event.code}
