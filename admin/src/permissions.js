@@ -21,6 +21,8 @@ export const permissions = {
 export const menuPermissions = [
   ...permissions.messagesRead,
   ...permissions.templatesRead,
+  ...permissions.contactsRead,
   ...permissions.accountsRead,
   ...permissions.analyticsRead,
+  ...permissions.settingsRead,
 ];

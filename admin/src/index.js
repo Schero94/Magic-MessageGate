@@ -1,6 +1,6 @@
 import { Message } from '@strapi/icons';
 
-import { menuPermissions } from './permissions';
+import { menuPermissions, permissions } from './permissions';
 import { PLUGIN_ID } from './pluginId';
 
 const LOCALES = ['en', 'de', 'fr', 'es', 'pt'];
@@ -15,6 +15,23 @@ export default {
       permissions: menuPermissions,
     });
     app.registerPlugin({ id: PLUGIN_ID, name: 'Magic MessageGate', isReady: true });
+    // Homepage widgets exist since Strapi 5.13; older admins skip this.
+    if ('widgets' in app && typeof app.widgets?.register === 'function') {
+      app.widgets.register([
+        {
+          id: 'messagegate-overview',
+          pluginId: PLUGIN_ID,
+          icon: Message,
+          title: { id: `${PLUGIN_ID}.widget.title`, defaultMessage: 'Messages today' },
+          link: {
+            label: { id: `${PLUGIN_ID}.widget.link`, defaultMessage: 'Open MessageGate' },
+            href: `/plugins/${PLUGIN_ID}`,
+          },
+          permissions: permissions.analyticsRead,
+          component: async () => (await import('./components/widgets/OverviewWidget')).default,
+        },
+      ]);
+    }
   },
 
   bootstrap() {},
