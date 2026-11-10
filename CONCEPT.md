@@ -1,0 +1,243 @@
+# Magic MessageGate: concept
+
+Status: approved for build (owner, 2026-11-10). This document is the contract for phases P2 to P5. Sources were read on 2026-11-10; every claim that is marked **verify** must be re-checked against the official page before the code that depends on it is written (docs-first rule).
+
+Magic MessageGate is a Strapi 5 plugin that sends template-based messages over **WhatsApp, Telegram and SMS**, with the same building blocks and click paths as Magic Mail: accounts, templates with variables and a live preview, a durable outbox with retries, delivery tracking, analytics and settings. It replaces `strapi-plugin-magic-whatsapp`, which drove WhatsApp Web through `baileys`. That approach is dropped entirely.
+
+---
+
+## 1. Decision log
+
+| #   | Decision                                                                                                                                                                                                                                     | Why                                                                                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | WhatsApp only through the official **WhatsApp Cloud API** (Graph API, currently `v23.0` in Meta's examples; the version is a setting). No `baileys`, no WhatsApp Web automation.                                                             | Unofficial clients break the WhatsApp terms, get numbers banned, break on app updates and have a supply-chain history of look-alike malware packages. The Cloud API is plain HTTPS. |
+| D2  | Existing business numbers join through Meta's **Embedded Signup**, either as a new API number or as **Coexistence** (the number stays in the WhatsApp Business App; the owner scans a QR code).                                              | This is the only legitimate "connect my phone number" path.                                                                                                                         |
+| D3  | **Telegram** through the official Bot API, with account linking by deep link (`t.me/<bot>?start=<token>`).                                                                                                                                   | Free, stable, official. Bots cannot message a phone number; the user must start the bot once.                                                                                       |
+| D4  | **SMS** through a provider adapter interface with two adapters: **seven.io** (German provider, request signing with HMAC-SHA256, EU hosting **verify**) and **Twilio** (global reach, `X-Twilio-Signature`, Lookup v2 for line-type checks). | Covers the German market and international numbers; both offer delivery receipts and signed callbacks.                                                                              |
+| D5  | **No vendor SDKs.** Every channel is a small `fetch` adapter. Runtime dependencies: `zod` (validation), `libphonenumber-js` (E.164 parsing; 1.13.16, zero dependencies, released 2026-11-10, actively maintained), `@strapi/utils`.          | Smallest attack surface; matches the supply-chain rules (maintained packages only, Dependabot cooldown 7/14 days).                                                                  |
+| D6  | The outbox, claiming, retry, `notAfter` and "uncertain" rules are copied in design from Magic Mail's outbox (4.4+).                                                                                                                          | Proven exactly-once delivery on 8 processes (2 replicas × pm2 4) on one Postgres.                                                                                                   |
+| D7  | Package `strapi-plugin-magic-messagegate` 1.0.0; repository renamed from `Schero94/strapi-plugin-magic-whatsapp` to `Schero94/Magic-MessageGate`. The old package name was never published to npm.                                           | Clean start, no baileys history in the published package.                                                                                                                           |
+| D8  | "Is the number online?" is **not offered**: neither WhatsApp Cloud API nor Telegram Bot API exposes presence. MessageGate shows "last activity" from inbound messages and read receipts instead (section 4).                                 | Honest product; no unofficial workarounds.                                                                                                                                          |
+
+---
+
+## 2. Channels
+
+### 2.1 WhatsApp (Meta WhatsApp Cloud API)
+
+**Sending:** `POST https://graph.facebook.com/{version}/{phone-number-id}/messages`, `Authorization: Bearer <token>`. Response `{ messaging_product, contacts: [{ input, wa_id }], messages: [{ id, message_status }] }`; `message_status` is `accepted`, `held_for_quality_assessment` or `paused`. Meta documents **no idempotency key** for this endpoint, so a timeout after the request was written is an "uncertain" outcome (D6). Source: <https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages>.
+
+**Template message** (outside the 24-hour customer service window only approved templates can be sent):
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "recipient_type": "individual",
+  "to": "+4917612345678",
+  "type": "template",
+  "template": {
+    "name": "order_shipped",
+    "language": { "code": "de" },
+    "components": [
+      {
+        "type": "body",
+        "parameters": [
+          { "type": "text", "parameter_name": "first_name", "text": "Anna" },
+          { "type": "text", "parameter_name": "order_number", "text": "A-1042" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- Parameter formats: **positional** (`{{1}}`, default) or **named** (`{{first_name}}`, unique, lowercase letters and underscores). Positional parameters omit `parameter_name`. Headers can carry text, image, document or video (`id` or `link` media object); buttons are quick reply, URL or copy code. Source: <https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview.md>, <https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/components>.
+- Free text (`type: text`) only inside the 24-hour window after the customer's last inbound message. MessageGate tracks the window per contact and refuses free text outside it with `WINDOW_CLOSED`.
+
+**Templates API:** `POST https://graph.facebook.com/{version}/{WABA-ID}/message_templates` with `name`, `category` (`MARKETING`, `UTILITY`, `AUTHENTICATION`), `language`, `parameter_format` (`positional`/`named`), `components` (samples required for every parameter). Limits: 100 creations per hour; 250 templates per account (unverified portfolio) or 6,000 (verified). Status changes arrive through the `message_template_status_update` webhook and can be read through the `status` field. **Verify** the exact API status enum (`APPROVED`, `PENDING`, `REJECTED`, `PAUSED`, `DISABLED`, …) in the Template API reference before mapping it.
+
+**Status webhooks:** `statuses[]` with `id` (wamid), `status` (`sent`, `delivered`, `read`, `failed`, `played` for voice), `timestamp`, `recipient_id`, `pricing { billable, pricing_model, type, category }`, and `errors[] { code, title, message, error_data.details, href }` on failure. `read` implies delivered; Meta skips `delivered` when a message is read immediately. Order is not guaranteed, so statuses only ever move forward (`failed` is terminal). Error **131026** ("Message undeliverable") marks the number as not reachable on WhatsApp. Source: <https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/status.md>. **Verify**: read receipts depend on the recipient's privacy setting (WhatsApp Help Center).
+
+**Webhook security:** GET verification (`hub.mode=subscribe`, `hub.verify_token`, `hub.challenge`), every POST verified with `X-Hub-Signature-256` = HMAC-SHA256 of the raw body with the **app secret**, constant-time compare, raw body captured before Strapi's body parser (pattern from Magic Mail's delivery webhooks). **Verify** retry behaviour (Meta retries non-2xx for a period) and answer 200 fast, process asynchronously.
+
+**Onboarding (Embedded Signup):** the admin opens Meta's Embedded Signup from the account wizard (Facebook JS SDK launched with the owner's Meta app ID and configuration ID), selects the business portfolio and WABA, then either registers a **new number** (SMS/voice code) or chooses **WhatsApp Business App** (Coexistence): enter the existing number, scan the QR code with the Business App (app version 2.24.17 or later per vendor docs, **verify**), history sync must finish within 24 hours. The code exchange (`code` → business token) happens server side. Coexistence facts still to **verify** in Meta's docs during P2: throughput, disabled features (groups, broadcast lists, disappearing messages, view-once), echo webhooks (`smb_message_echoes`) and country restrictions. Sources: vendor guides (Kapso, YCloud, Qiscus) found on 2026-11-10; Meta's own Coexistence page must be read before P3.
+
+**Pricing (Germany):** since 2025-07-01 Meta bills per delivered template message by category (per-message pricing), service replies inside the window are free. Third-party rate cards show Germany at about €0.11 per marketing and €0.046 per utility/authentication message, with volume tiers for utility. **Verify** on Meta's current rate card (<https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing>) before putting numbers in the README.
+
+### 2.2 Telegram (Bot API)
+
+- API: `https://api.telegram.org/bot<token>/<method>`, Bot API 10.4 (2026-11-09). `sendMessage` with `chat_id`, `text`, `parse_mode` (`HTML` default in MessageGate; MarkdownV2 escaping is error-prone), `link_preview_options`, `reply_markup`. **Verify** the text length limit (4,096 characters) in the API page before enforcing it.
+- Webhook: `setWebhook` with `url`, `secret_token` (1–256 chars, `A-Za-z0-9_-`), `allowed_updates`, `drop_pending_updates`; Telegram sends `X-Telegram-Bot-Api-Secret-Token`. Webhooks and `getUpdates` are mutually exclusive. Source: <https://core.telegram.org/bots/api>.
+- Linking: MessageGate issues a one-time token (base64url, ≤ 64 chars, allowed `A-Za-z0-9_-`) and shows `https://t.me/<bot>?start=<token>`. The bot receives `/start <token>`; MessageGate binds `chat_id` to the Strapi user/contact and burns the token. Source: <https://core.telegram.org/bots/features#deep-linking>.
+- Rate limits: about 1 message per second per chat, 20 per minute per group, about 30 per second overall (paid broadcasts up to 1,000/s). Exceeding returns 429. Source: <https://core.telegram.org/bots/faq>.
+- No read receipts and no presence for bots. Delivery = Telegram accepted the message.
+
+### 2.3 SMS (provider adapters)
+
+| Provider           | Official REST API     | Delivery receipts                                                                 | Webhook auth                                                          | EU / GDPR                         | Alphanumeric sender DE                               | Verdict       |
+| ------------------ | --------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------- | ------------- |
+| **seven.io**       | yes                   | yes (hooks API)                                                                   | HMAC-SHA256 request signing (timestamp, nonce, method, URL, body MD5) | German company **verify** hosting | yes **verify**                                       | **Adapter 1** |
+| **Twilio**         | yes                   | `StatusCallback` (`queued`, `sent`, `delivered`, `undelivered`, `failed`, `read`) | `X-Twilio-Signature` HMAC-SHA1 with auth token                        | DPA + EU options **verify**       | supported, rules **verify** in Twilio's DE guideline | **Adapter 2** |
+| Bird (MessageBird) | yes                   | yes                                                                               | **verify**                                                            | EU                                | yes                                                  | later         |
+| Vonage             | yes                   | yes                                                                               | signed webhooks **verify**                                            | EU                                | yes                                                  | later         |
+| sipgate            | yes (limited SMS API) | **verify**                                                                        | **verify**                                                            | German                            | **verify**                                           | later         |
+
+Sources: <https://docs.seven.io/en/rest-api/signing>, <https://docs.seven.io/en/rest-api/webhooks>, <https://www.twilio.com/en-us/guidelines/de/sms>. The adapter interface makes adding providers a one-file change.
+
+---
+
+## 3. Core model
+
+Content types (all hidden from the Content Manager and GraphQL Shadow CRUD):
+
+| Content type       | Key fields                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `channel-account`  | `channel` (whatsapp/telegram/sms), `provider` (meta/telegram/seven/twilio), `name`, `isActive`, `isDefault`, `priority`, `config` (encrypted JSON: tokens, app secret, phone number ID, WABA ID, bot token, webhook secret), `limits` (per second/day), `health` (last ok, last error code), `webhookPath` (random id)                                                                                                                                                                                                              |
+| `template`         | `channel`, `key` (stable API name), `name`, `language`, `category`, `parameterFormat`, `components` (structured), `variablesSchema` (derived JSON schema → zod at runtime), `providerTemplateId`, `approvalStatus`, `rejectionReason` (sanitized), `version`, `isActive`                                                                                                                                                                                                                                                            |
+| `contact`          | `phoneE164Hash` (HMAC with a plugin secret), `phoneE164` (encrypted, for sending), `telegramChatId` (encrypted), `userId` (optional link to users-permissions), `locale`, `lastInboundAt`, `lastReadAt`, `whatsappReachability` (unknown/ok/unreachable + since), `lineType` (from lookup)                                                                                                                                                                                                                                          |
+| `consent`          | `contact`, `channel`, `status` (granted/revoked/pending), `source` (api/admin/import/double-opt-in/keyword), `grantedAt`, `revokedAt`, `evidenceHash`                                                                                                                                                                                                                                                                                                                                                                               |
+| `message` (outbox) | `status` (queued, sending, sent, delivered, read, failed, uncertain, expired, discarded), `phase`, `channel`, `account`, `template`, `contactHash`, `payload` (encrypted, removed after terminal states), `variablesHash`, `attempts`, `maxAttempts`, `nextAttemptAt`, `notAfter`, `notAfterFixed`, `leaseToken`, `leaseUntil`, `idempotencyKeyHash` (unique), `providerMessageId` (indexed), `errorCode`, `errorHistory` (≤ 10, codes only), `sentAt`, `deliveredAt`, `readAt`, `failedAt`, `fallbackOf`, `source`, `costCategory` |
+| `message-event`    | `message`, `type`, `at`, `code`, `raw` never stored                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `webhook-receipt`  | `provider`, `eventKey` (unique, dedupe), `receivedAt` (purged after 7 days)                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `suppression`      | `contactHash`, `channel`, `reason` (unreachable_131026, opted_out, invalid_number, hard_failure), `until`                                                                                                                                                                                                                                                                                                                                                                                                                           |
+
+**Outbox rules (from Magic Mail):** claim with `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING` on Postgres, transaction + `SKIP LOCKED` on MySQL 8, conditional per-row update on SQLite; lease token fences every state change; reaper turns expired `dispatching` leases into `uncertain`; retries 1 min / 5 min / 15 min ±20 % jitter, `maxAttempts` 3; retry only on proven non-acceptance (HTTP 429/503, connection refused, provider "not accepted" codes); ambiguous outcomes become `uncertain` and are never auto-retried; `notAfter` from the caller is final (login codes never go out late); idempotency key returns the existing message.
+
+**Routing and fallback:** routing rules (match on template key, tag, recipient country, channel preference) choose an ordered chain, for example `whatsapp → sms → email`. The next step runs when a message ends `failed` with a fallback-eligible code (131026, no consent on that channel, not linked to Telegram, suppression) or when `deliveredAt` is still empty after a configured timeout (off by default; may duplicate). Email fallback uses Magic Mail when installed (`send(…, { notAfter, idempotencyKey })`).
+
+**Consent:** sending requires `consent.granted` for the channel unless the template category is `AUTHENTICATION` and the caller sets `transactional: true`. Inbound `STOP`, `STOPP`, `ABMELDEN` (configurable keywords) revoke consent and reply with a confirmation template if configured. Optional double opt-in through a confirmation template.
+
+**Phone numbers:** `libphonenumber-js` (max metadata) parses to E.164 with a default country setting (`DE`); only `MOBILE` / `FIXED_LINE_OR_MOBILE` accepted for WhatsApp and SMS. Raw numbers never appear in logs; logs carry the HMAC hash prefix.
+
+**Webhooks:** one route per provider and account: `POST /api/messagegate/webhooks/:provider/:webhookPath` (unguessable path + provider signature), always 200 after verification, events deduplicated by `webhook-receipt`, statuses applied monotonically.
+
+---
+
+## 4. Owner wishes mapped to what the official APIs allow
+
+| Wish                                     | WhatsApp Cloud API                                                                                                                                                         | Telegram Bot API                                                    | SMS                                    | What MessageGate does                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Does the number exist / is it valid?** | No contact-check endpoint (the old `/contacts` check of the on-premises API is not part of the Cloud API, **verify**). Only the first send tells: `failed` with **131026** | Not possible by phone number at all; only users who started the bot | Carrier/HLR lookups exist as paid APIs | 1) Free, local: E.164 parse + number type (`libphonenumber-js`). 2) Optional, cached, paid **line-type lookup** (Twilio Lookup v2 `line_type_intelligence`, about $0.008 per request; seven.io lookup **verify** price) with a 30-day cache per number hash and a monthly budget cap. 3) **Learned WhatsApp reachability**: after 131026 the contact is marked "not on WhatsApp" and the router falls back to SMS automatically. |
+| **Is the person online?**                | No presence API                                                                                                                                                            | No presence for bots                                                | No                                     | Not offered (D8). Instead **"last activity"**: last inbound message, last read receipt, last delivery, per channel, shown on the contact and in the message detail.                                                                                                                                                                                                                                                              |
+| **Has the person read the message?**     | `read` status webhook (only when the recipient has read receipts enabled; otherwise the message stays `delivered`)                                                         | No read receipts for bots                                           | Delivery receipt (DLR) only            | Per message a **timeline** `queued → sent → delivered → read` with timestamps (and `failed` with the code). Analytics: delivery rate and read rate per template, per channel and per account, with the note that read rates are a lower bound on WhatsApp.                                                                                                                                                                       |
+
+---
+
+## 5. Public API
+
+```js
+const result = await strapi
+  .plugin("magic-messagegate")
+  .service("messages")
+  .send({
+    channel: "auto", // 'whatsapp' | 'telegram' | 'sms' | 'auto' (routing rules)
+    to: "+4917612345678", // or { userId } / { contactId }
+    template: "order_shipped", // template key
+    language: "de",
+    variables: { first_name: "Anna", order_number: "A-1042" },
+    idempotencyKey: "order-shipped-A-1042",
+    notAfter: new Date(Date.now() + 15 * 60_000),
+    transactional: false,
+    metadata: { orderId: "A-1042" }, // stored, never sent
+  });
+// → { id, status: 'queued', channel, account, duplicate?: true }
+```
+
+- Validation errors (`@strapi/utils` errors, 4xx): `INVALID_PHONE`, `UNKNOWN_TEMPLATE`, `TEMPLATE_NOT_APPROVED`, `MISSING_VARIABLE`, `INVALID_VARIABLE`, `NO_CONSENT`, `SUPPRESSED`, `WINDOW_CLOSED`, `NO_ACCOUNT`, `DEADLINE_PASSED`, `RATE_LIMITED`.
+- Other service methods: `get(id)`, `list(filters)`, `cancel(id)`, `retry(id, { confirmDuplicateRisk })`, `contacts.upsert`, `consent.grant/revoke`, `telegram.createLinkToken(userId)`, `lookup.check(phone)`.
+- Content API (API token, `messagegate.send` scope via the users-permissions/API-token permission system, rate limited per token): `POST /api/messagegate/messages`, `GET /api/messagegate/messages/:id`, `POST /api/messagegate/contacts/:id/consent`.
+- Events on `strapi.eventHub` without PII: `messagegate.message.queued|sent|delivered|read|failed|uncertain|expired|fallback`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable`, `messagegate.template.status-changed`. Payload: `{ messageId, channel, templateKey, status, code?, at }`.
+- **Magic Link later:** a "login code via WhatsApp/SMS" delivery option calls `send({ channel: 'auto', template: 'login_code', variables: { code }, notAfter: tokenExpiry, transactional: true, idempotencyKey })`. Requires an `AUTHENTICATION` template with a copy-code button.
+
+---
+
+## 6. Admin UI (Strapi Design System 2.2.x, Magic Mail patterns)
+
+Navigation tabs like Magic Mail, with the shared table layer (filter bar, table card, pagination, phone card layout below 768 px), ConfirmDialog for destructive actions, five locales (en, de, fr, es, pt; German without forms of address):
+
+1. **Accounts:** list with channel badge, status, health, today's volume. "Add account" wizard: choose channel → WhatsApp (Embedded Signup button with two paths: new number / connect WhatsApp Business App via QR) or manual credentials; Telegram (bot token, set webhook automatically, show bot username); SMS (provider, API key, sender ID). Test connection, Send test message.
+2. **Templates:** list by channel/category/approval status. Editor with variables (insert-variable menu, named or positional), header media, buttons, live **phone preview** for WhatsApp, Telegram and SMS (segment counter, GSM-7/UCS-2 detection), sample values, "Submit to Meta" and status sync. Duplicate, versions.
+3. **Messages (outbox):** filters (status, channel, template, account, date), row timeline, detail drawer with the status timeline, error history, fallback chain, actions Retry / Discard / Mark as delivered (with confirmation for uncertain).
+4. **Contacts & consent:** search by number (hashed lookup), consent per channel, Telegram link status, reachability, last activity, suppression, export/erase (GDPR).
+5. **Analytics:** volume, delivery rate, read rate, failures by code, cost estimate by category, per template/channel/account; date range.
+6. **Settings:** default country, routing rules and fallback chain, opt-out keywords, lookup provider and budget, retention, rate limits, Graph API version, test mode.
+
+RBAC actions: `accounts.read`, `accounts.manage`, `templates.read`, `templates.manage`, `templates.submit`, `messages.read`, `messages.send`, `messages.manage`, `contacts.read`, `contacts.manage`, `contacts.export`, `analytics.read`, `settings.read`, `settings.update`.
+
+---
+
+## 7. Security model
+
+- Secrets (tokens, app secret, bot token, provider keys, webhook secrets) encrypted with AES-256-GCM (HKDF purpose per field, key from `MESSAGEGATE_ENCRYPTION_KEY` or derived from `APP_KEYS` like Magic Mail), never returned by the API (masked), never logged.
+- Every admin route `admin::isAuthenticatedAdmin` + `admin::hasPermissions`; content API only with API tokens; strict zod schemas with bounds; mass assignment blocked.
+- Webhooks: provider signature + unguessable path + replay window + dedupe; body size limit; constant-time compares; 401 without detail.
+- SSRF: no user-supplied URLs are fetched; provider base URLs are fixed constants; media is uploaded to Meta from Strapi's media library by ID, not fetched from arbitrary links.
+- PII: phone numbers encrypted at rest, HMAC-hashed for lookup and logs, payloads deleted after terminal states, retention settings, GDPR erase/export per contact.
+- Template injection: variables are text only, length-limited, control characters stripped; Telegram HTML escaped.
+- Rate limits shared across processes (DB counters, optional Redis) for send, lookup and admin actions.
+- Supply chain: no vendor SDKs, lockfile, `npm ci --ignore-scripts`, Dependabot with cooldown, provenance on publish, SHA-pinned actions, `npm audit --omit=dev` = 0 as a release gate.
+- Multi-instance: outbox claiming, webhook dedupe, template sync and reapers under DB leases; tested with 8 processes.
+
+---
+
+## 8. Package plan
+
+- `strapi-plugin-magic-messagegate` **1.0.0**, plugin id `magic-messagegate`, MIT, `engines.node` `^22.21.0 || >=24.9.0`, peers `@strapi/strapi ^5.38.0`, `react ^18`, `react-dom ^18`, `react-router-dom ^6`, `styled-components ^6`, optional peers `@strapi/design-system ^2.2.0`, `@strapi/icons ^2.2.0`, `react-intl ^6` (no install warnings); dependencies `@strapi/utils`, `zod`, `libphonenumber-js`.
+- Tooling like plugin-io / Magic Mail: ESLint 10 flat config, Prettier, `node --test`, `@strapi/sdk-plugin` 6 build + verify + runtime bundle check, CI Node 22/24 with a Postgres 16 job, release.yml (semantic-release, OIDC trusted publishing with `NPM_TOKEN` fallback, provenance, co-author trailers stripped from notes), Dependabot with cooldown, GitHub Pages workflow.
+- Delete from the old repo: `baileys` and `qrcode` dependencies, `server/src/services/whatsapp.js`, `server/src/services/auth-state.js` (QR session storage), `server/src/controllers/whatsapp.js`, `server/src/routes/admin.js` (old routes), `admin/src/pages/App.jsx` (old UI), `admin/src/utils/template-validation.mjs` (replaced), tests `auth-state`, `transport`, `controllers`, `plugin`, `rate-limit`, `template-validation` (rewritten), `scripts/build-server-bundle.mjs` (replaced by sdk-plugin build), `.agents/skills/strapi-plugin-maintenance` (workbench skills supersede it), any `.whatsapp-auth` handling. Keep and rewrite: README, CHANGELOG (start a 1.0.0 entry with a migration note from magic-whatsapp), docs/site, workflows.
+- Repo: rename `Schero94/strapi-plugin-magic-whatsapp` → `Schero94/Magic-MessageGate` (GitHub redirects the old URL), update description, homepage (Pages URL), topics.
+
+---
+
+## 9. Test strategy
+
+- Unit: template rendering and variable validation, E.164 parsing, consent rules, routing and fallback, status monotonicity, retry classifier per provider, encryption, signature verification (Meta HMAC-SHA256, Telegram secret header, seven.io signing, Twilio HMAC-SHA1) with fixtures generated locally.
+- Fake servers (Node `http`): Graph API (`/messages`, `/message_templates`, error 131026, 429, 5xx, slow responses), Telegram (`sendMessage`, `setWebhook`, 429 with `retry_after`), seven.io and Twilio SMS with DLR callbacks.
+- Multi-process: 8 processes on Postgres 16 (127.0.0.1:5440), 500 messages, each sent exactly once, SIGKILL during dispatch → uncertain, webhook storms deduplicated.
+- Host acceptance: real Strapi 5.61 app with the packed tarball, egress blocked, synthetic data, Playwright (own Chromium) for every screen at 1440/1024/768/390/320 light and dark with `measure.js`, keyboard walk, console clean.
+- Security re-attack pass before release.
+
+---
+
+## 10. Documentation plan
+
+- **README** with real screenshots from the acceptance host (synthetic data): value first, badges, hero screenshot, quick start in one minute, channel setup guides (WhatsApp Embedded Signup and Coexistence, Telegram BotFather, seven.io, Twilio), templates and variables, sending API with copy-paste examples, delivery timeline and analytics, consent and GDPR, security, several instances, FAQ, migration from magic-whatsapp, compatibility.
+- **AGENTS.md** (for AI agents and developers): exact service and REST contract, request/response JSON, every error code with meaning and fix, events with payloads, webhook URLs, state machine of a message, configuration keys, and ready-to-paste snippets (send a login code, order update with fallback, Telegram linking).
+- **docs site / GitHub Pages**: landing page plus guides; `llms.txt` and `llms-full.txt` generated from the docs like plugin-io; responsive to 320 px, dark mode, SEO/OG.
+- CHANGELOG with a migration section; screenshots refreshed by a script.
+
+---
+
+## 11. Phase plan
+
+| Phase              | Scope                                                                                                                                                                                                                                                                                                                 | Acceptance                                                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **P2 server core** | Clean the repo (section 8), scaffold with sdk-plugin, content types, crypto, phone utils, template engine, consent, outbox + worker + reaper, adapters (Meta, Telegram, seven.io, Twilio), webhooks, routing/fallback, lookup (optional), events, admin + content API routes with RBAC and zod, multi-instance store. | lint, format, `node --test` (unit + fake servers), Postgres multi-process test green, build + verify, `npm audit --omit=dev` 0 |
+| **P3 admin UI**    | All six areas from section 6 with the shared table layer, wizard, template editor with phone preview, timeline, analytics charts, settings, 5 locales.                                                                                                                                                                | Playwright matrix clean, keyboard walk, no console errors, measure.js clean                                                    |
+| **P4 hardening**   | Host acceptance end to end with fake providers, security re-attack, performance with 50,000 messages, docs (README, AGENTS.md, Pages, llms files), screenshots.                                                                                                                                                       | Re-attack findings fixed, docs link check, Pages build                                                                         |
+| **P5 release**     | Repo rename, CI/release/Dependabot, PR, merge, 1.0.0 on npm.                                                                                                                                                                                                                                                          | CI green on Node 22/24 + Postgres job, release run success, package on npm                                                     |
+
+---
+
+## 12. Owner actions (cannot be done by the build)
+
+1. **Meta:** business portfolio, Meta app with WhatsApp product, business verification (needed for higher limits and 6,000 templates), app secret, Embedded Signup configuration ID, a phone number (new) or the WhatsApp Business App number for Coexistence, payment method for conversations.
+2. **Telegram:** create the bot with @BotFather and copy the token.
+3. **SMS:** seven.io and/or Twilio account, API key, sender ID registration where required, optional Lookup.
+4. **npm:** a trusted publisher for `strapi-plugin-magic-messagegate` (repo `Schero94/Magic-MessageGate`, workflow `release.yml`) or an `NPM_TOKEN` secret in the renamed repo. The first publish of a new package name may need a token if trusted publishing is not set up before the package exists (**verify** npm's rule).
+5. **GitHub:** approve the repository rename and enable Dependabot alerts in the repo settings.
+
+---
+
+## 13. Sources (read 2026-11-10)
+
+- Meta Cloud API messages reference: <https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages>
+- Meta template fundamentals: <https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview.md>
+- Meta status webhook reference: <https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/status.md>
+- Meta pricing: <https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing>
+- Coexistence vendor guides: <https://kapso.com/blog/whatsapp-business-app-coexistence-cloud-api>, <https://helpdocs.ycloud.com/help-center/whatsapp-accounts-management/create-a-whatsapp-api-account/whatsapp-business-app-coexistence>, <https://documentation.qiscus.com/omnichannel-chat/whatsapp-coexistence>
+- Telegram Bot API: <https://core.telegram.org/bots/api>, deep linking: <https://core.telegram.org/bots/features#deep-linking>, limits: <https://core.telegram.org/bots/faq>
+- seven.io signing and webhooks: <https://docs.seven.io/en/rest-api/signing>, <https://docs.seven.io/en/rest-api/webhooks>
+- Twilio Germany SMS guideline: <https://www.twilio.com/en-us/guidelines/de/sms>; Lookup v2 line type intelligence: <https://www.twilio.com/docs/lookup/v2-api/line-type-intelligence>; pricing: <https://www.twilio.com/en-us/lookup/pricing>
+- Germany messenger usage: <https://de.statista.com/statistik/daten/studie/1032143/umfrage/nutzung-von-messengern-in-deutschland>
+- `libphonenumber-js` 1.13.16 and `zod` 4.6.7 metadata from the npm registry.
