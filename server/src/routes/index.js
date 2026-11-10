@@ -33,6 +33,7 @@ module.exports = {
     routes: [
       admin('GET', '/accounts', 'listAccounts', 'accounts.read'),
       admin('POST', '/accounts', 'createAccount', 'accounts.manage'),
+      admin('POST', '/accounts/embedded-signup', 'completeEmbeddedSignup', 'accounts.manage'),
       admin('PUT', '/accounts/:id', 'updateAccount', 'accounts.manage'),
       admin('DELETE', '/accounts/:id', 'deleteAccount', 'accounts.manage'),
       admin('POST', '/accounts/:id/test', 'testAccount', 'accounts.manage'),
@@ -63,6 +64,7 @@ module.exports = {
       admin('DELETE', '/contacts/:id', 'eraseContact', 'contacts.manage'),
 
       admin('POST', '/lookup', 'lookup', 'contacts.read'),
+      admin('GET', '/lookup/budget', 'lookupBudget', 'contacts.read'),
       admin('GET', '/analytics', 'analytics', 'analytics.read'),
       admin('GET', '/settings', 'getSettings', 'settings.read'),
       admin('PUT', '/settings', 'updateSettings', 'settings.update'),

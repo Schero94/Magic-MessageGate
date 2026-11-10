@@ -208,4 +208,94 @@ module.exports = {
     if (res.outcome !== 'accepted') return { ok: false, id: null, status: null, code: classify(res).code };
     return { ok: true, id: String(res.json?.id || ''), status: res.json?.status || 'PENDING', code: null };
   },
+
+  /*
+   * Embedded Signup (read 2026-11-11):
+   * - https://developers.facebook.com/docs/whatsapp/embedded-signup/implementation
+   * - https://developers.facebook.com/docs/whatsapp/embedded-signup/onboarding-customers-as-a-tech-provider
+   *   1. GET /oauth/access_token?client_id&client_secret&code -> business token
+   *   2. POST /<WABA_ID>/subscribed_apps (Bearer business token)
+   *   3. POST /<PHONE_NUMBER_ID>/register {messaging_product, pin} (new numbers only)
+   * - https://developers.facebook.com/docs/whatsapp/embedded-signup/custom-flows/onboarding-business-app-users
+   *   Business App numbers (Coexistence) skip register and start the one-time
+   *   contacts and history syncs: POST /<PHONE_NUMBER_ID>/smb_app_data
+   *   {messaging_product, sync_type: smb_app_state_sync | history}, within 24 hours.
+   */
+
+  /**
+   * Exchanges the Embedded Signup code (valid for 30 seconds) for a business token.
+   *
+   * @param {{appId: string, appSecret: string, code: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, accessToken: string|null, code: string|null}>}
+   */
+  async exchangeCode({ appId, appSecret, code, settings = {}, fetchImpl }) {
+    const base = settings.baseUrl || DEFAULT_BASE;
+    const version = settings.graphVersion || DEFAULT_VERSION;
+    const query = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
+    const res = await request({
+      url: `${base}/${version}/oauth/access_token?${query}`,
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    const token = res.outcome === 'accepted' ? res.json?.access_token : null;
+    if (typeof token !== 'string' || !token) {
+      return { ok: false, accessToken: null, code: res.outcome === 'accepted' ? 'NO_TOKEN' : classify(res).code };
+    }
+    return { ok: true, accessToken: token, code: null };
+  },
+
+  /**
+   * Subscribes this app to the webhooks of the customer's WABA.
+   *
+   * @param {{config: object, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null}>}
+   */
+  async subscribeApp({ config, settings, fetchImpl }) {
+    const { base, version, headers } = endpoint(config, settings);
+    const res = await request({
+      url: `${base}/${version}/${encodeURIComponent(config.wabaId)}/subscribed_apps`,
+      headers,
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    return res.outcome === 'accepted' ? { ok: true, code: null } : { ok: false, code: classify(res).code };
+  },
+
+  /**
+   * Registers a new Cloud API number with its two-step verification PIN.
+   *
+   * @param {{config: object, pin: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null}>}
+   */
+  async registerNumber({ config, pin, settings, fetchImpl }) {
+    const { base, version, headers } = endpoint(config, settings);
+    const res = await request({
+      url: `${base}/${version}/${encodeURIComponent(config.phoneNumberId)}/register`,
+      headers,
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    return res.outcome === 'accepted' ? { ok: true, code: null } : { ok: false, code: classify(res).code };
+  },
+
+  /**
+   * Starts a one-time Business App sync (contacts or message history).
+   *
+   * @param {{config: object, syncType: 'smb_app_state_sync'|'history', settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null}>}
+   */
+  async startBusinessAppSync({ config, syncType, settings, fetchImpl }) {
+    const { base, version, headers } = endpoint(config, settings);
+    const res = await request({
+      url: `${base}/${version}/${encodeURIComponent(config.phoneNumberId)}/smb_app_data`,
+      headers,
+      body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: syncType }),
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    return res.outcome === 'accepted' ? { ok: true, code: null } : { ok: false, code: classify(res).code };
+  },
 };

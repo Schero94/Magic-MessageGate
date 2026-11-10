@@ -33,6 +33,7 @@ const CODES = Object.freeze({
   PROVIDER_ERROR: { status: 502, message: 'The provider rejected the request' },
   INVALID_SIGNATURE: { status: 401, message: 'Unauthorized' },
   CONFIG_INVALID: { status: 400, message: 'The configuration is invalid' },
+  EMBEDDED_SIGNUP_DISABLED: { status: 409, message: 'Meta Embedded Signup is not configured on the server' },
 });
 
 class MessageGateError extends Error {

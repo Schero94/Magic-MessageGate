@@ -14,7 +14,7 @@
  * sent, or whether the person is online; MessageGate does not pretend to.
  */
 const { T } = require('../store/schema');
-const { hit } = require('../store/coordination');
+const { hit, peek } = require('../store/coordination');
 const { getAdapter } = require('../adapters');
 const { parsePhone } = require('../utils/phone');
 const { hashValue } = require('../utils/crypto');
@@ -102,6 +102,24 @@ function createLookup(ctx, deps) {
           .where('phone_hash', phoneHash)
           .update({ line_type: answer.lineType.slice(0, 24) });
       return { ...result, remote: remoteResult };
+    },
+
+    /**
+     * Lookup budget of the current month (for the admin).
+     *
+     * @returns {Promise<{enabled: boolean, month: string, used: number, budget: number, cacheDays: number}>}
+     */
+    async budgetStatus() {
+      const settings = await deps.settings.get();
+      const month = new Date(ctx.now()).toISOString().slice(0, 7);
+      const used = await peek(ctx.knex, `lookup-budget:${month}`, ctx.now());
+      return {
+        enabled: Boolean(settings.lookup.enabled && settings.lookup.accountId),
+        month,
+        used: Math.min(used, settings.lookup.monthlyBudget),
+        budget: settings.lookup.monthlyBudget,
+        cacheDays: settings.lookup.cacheDays,
+      };
     },
   };
 }

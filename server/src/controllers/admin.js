@@ -88,6 +88,7 @@ module.exports = ({ strapi }) => {
       await core().accounts.remove(paramId(ctx));
       return { deleted: true };
     }),
+    completeEmbeddedSignup: write((ctx) => core().accounts.completeEmbeddedSignup(ctx.request.body || {})),
     testAccount: write((ctx) => core().accounts.testConnection(paramId(ctx))),
     syncTemplates: write((ctx) => core().templates.syncFromMeta(paramId(ctx))),
 
@@ -187,6 +188,7 @@ module.exports = ({ strapi }) => {
         .parse(ctx.request.body || {});
       return core().lookup.check(body.phone, { remote: body.remote !== false });
     }),
+    lookupBudget: read(() => core().lookup.budgetStatus()),
     analytics: read((ctx) => {
       const q = z
         .object({
@@ -199,7 +201,20 @@ module.exports = ({ strapi }) => {
     }),
     getSettings: read(async () => {
       const { value, revision } = await core().settings.getWithRevision();
-      return { settings: value, revision, magicMailInstalled: Boolean(core().ctx.magicMail) };
+      const signup = core().ctx.config.providers.meta.embeddedSignup || {};
+      return {
+        settings: value,
+        revision,
+        magicMailInstalled: Boolean(core().ctx.magicMail),
+        publicUrl: core().ctx.publicUrl || null,
+        // Public values only; the app secret never leaves the server.
+        embeddedSignup: {
+          enabled: Boolean(signup.appId && signup.configId && signup.appSecret),
+          appId: signup.appId || null,
+          configId: signup.configId || null,
+          graphVersion: core().ctx.config.providers.meta.graphVersion || 'v23.0',
+        },
+      };
     }),
     updateSettings: write(async (ctx) => {
       const body = z

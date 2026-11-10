@@ -631,8 +631,10 @@ function createOutbox(ctx, deps) {
         .knex(T.messages)
         .where('fallback_of', row.id)
         .select('document_id', 'channel', 'status');
+      const recipients = await deps.contacts.recipientsByIds([row.contact_id]);
       return {
         ...toDto(row),
+        recipient: recipients.get(row.contact_id) || null,
         timeline: events.map((e) => ({ type: e.type, code: e.code || null, at: Number(e.at) })),
         fallbacks: fallbacks.map((f) => ({ id: f.document_id, channel: f.channel, status: f.status })),
       };
@@ -654,13 +656,18 @@ function createOutbox(ctx, deps) {
       if (query.accountId) q.where('account_id', query.accountId);
       if (query.from) q.where('created_at', '>=', Number(query.from));
       if (query.to) q.where('created_at', '<', Number(query.to));
+      if (query.phone) {
+        const contactId = await deps.contacts.idByPhone(query.phone, query.country || ctx.config.defaultCountry);
+        q.where('contact_id', contactId ?? -1);
+      }
       const [{ total }] = await q.clone().count({ total: '*' });
       const rows = await q
         .orderBy('id', 'desc')
         .limit(pageSize)
         .offset((page - 1) * pageSize);
+      const recipients = await deps.contacts.recipientsByIds(rows.map((r) => r.contact_id));
       return {
-        results: rows.map(toDto),
+        results: rows.map((r) => ({ ...toDto(r), recipient: recipients.get(r.contact_id) || null })),
         pagination: { page, pageSize, total: Number(total), pageCount: Math.ceil(Number(total) / pageSize) },
       };
     },

@@ -5,6 +5,7 @@
  * each. Secrets are stored encrypted (AES-256-GCM, purpose `account-config`)
  * and never leave the server; DTOs only show which secrets are set.
  */
+const crypto = require('node:crypto');
 const { z } = require('zod');
 const { T } = require('../store/schema');
 const { getAdapter, PROVIDERS_BY_CHANNEL } = require('../adapters');
@@ -13,6 +14,24 @@ const { MessageGateError } = require('../utils/errors');
 const { newId, parseJson } = require('./context');
 
 const PURPOSE = 'account-config';
+
+/** Embedded Signup result events that create an account (Meta session events). */
+const SIGNUP_EVENTS = ['FINISH', 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING'];
+
+const embeddedSignupSchema = z
+  .object({
+    code: z.string().trim().min(10).max(2048),
+    event: z.enum(SIGNUP_EVENTS),
+    wabaId: z.string().regex(/^\d{5,25}$/),
+    phoneNumberId: z.string().regex(/^\d{5,25}$/),
+    businessId: z
+      .string()
+      .regex(/^\d{5,25}$/)
+      .optional(),
+    name: z.string().trim().min(1).max(120),
+    isDefault: z.boolean().default(false),
+  })
+  .strict();
 const secret = (max = 512) => z.string().trim().min(8).max(max);
 
 /** Config schema per provider; `secretKeys` lists values that are masked. */
@@ -32,9 +51,20 @@ const PROVIDER_CONFIG = Object.freeze({
           .string()
           .regex(/^v\d{1,3}\.\d$/)
           .optional(),
+        // Set by Embedded Signup: how the number was connected.
+        onboarding: z.enum(['manual', 'embedded']).optional(),
+        coexistence: z.boolean().optional(),
+        businessId: z
+          .string()
+          .regex(/^\d{5,25}$/)
+          .optional(),
+        twoStepPin: z
+          .string()
+          .regex(/^\d{6}$/)
+          .optional(),
       })
       .strict(),
-    secretKeys: ['accessToken', 'appSecret', 'verifyToken'],
+    secretKeys: ['accessToken', 'appSecret', 'verifyToken', 'twoStepPin'],
     generated: { verifyToken: () => randomToken(24) },
   },
   telegram: {
@@ -362,6 +392,92 @@ function createAccounts(ctx) {
      * @param {string} documentId
      * @returns {Promise<{ok: boolean, code: string|null, info: object}>}
      */
+    /**
+     * Completes Meta Embedded Signup on the server: exchanges the 30-second
+     * code for a business token, subscribes the app to the WABA, registers a
+     * new number (random two-step PIN, stored encrypted) or, for a WhatsApp
+     * Business App number (Coexistence), skips registration and starts the
+     * one-time contacts and history syncs. The app secret never leaves the
+     * server: it comes from the plugin config.
+     *
+     * @param {object} input - See embeddedSignupSchema.
+     * @returns {Promise<{account: object, steps: object}>}
+     * @throws {MessageGateError} EMBEDDED_SIGNUP_DISABLED, CONFIG_INVALID, PROVIDER_ERROR
+     */
+    async completeEmbeddedSignup(input) {
+      const signup = ctx.config.providers.meta.embeddedSignup || {};
+      if (!signup.appId || !signup.appSecret || !signup.configId) {
+        throw new MessageGateError('EMBEDDED_SIGNUP_DISABLED');
+      }
+      const parsed = embeddedSignupSchema.safeParse(input || {});
+      if (!parsed.success) {
+        throw new MessageGateError('CONFIG_INVALID', undefined, {
+          field: String(parsed.error.issues[0].path[0] ?? ''),
+        });
+      }
+      const data = parsed.data;
+      const adapter = getAdapter('meta');
+      const settings = ctx.config.providers.meta || {};
+      const exchanged = await adapter.exchangeCode({
+        appId: signup.appId,
+        appSecret: signup.appSecret,
+        code: data.code,
+        settings,
+        fetchImpl: ctx.fetchImpl,
+      });
+      if (!exchanged.ok)
+        throw new MessageGateError('PROVIDER_ERROR', undefined, { step: 'exchange', reason: exchanged.code });
+
+      const coexistence = data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+      const config = {
+        accessToken: exchanged.accessToken,
+        phoneNumberId: data.phoneNumberId,
+        wabaId: data.wabaId,
+        appSecret: signup.appSecret,
+        onboarding: 'embedded',
+        coexistence,
+        ...(data.businessId ? { businessId: data.businessId } : {}),
+        ...(coexistence ? {} : { twoStepPin: String(crypto.randomInt(100000, 1000000)) }),
+      };
+      const steps = { exchange: 'ok', subscribe: null, register: null, contactsSync: null, historySync: null };
+      const sub = await adapter.subscribeApp({ config, settings, fetchImpl: ctx.fetchImpl });
+      steps.subscribe = sub.ok ? 'ok' : sub.code;
+      if (!sub.ok) throw new MessageGateError('PROVIDER_ERROR', undefined, { step: 'subscribe', reason: sub.code });
+      if (coexistence) {
+        const contacts = await adapter.startBusinessAppSync({
+          config,
+          syncType: 'smb_app_state_sync',
+          settings,
+          fetchImpl: ctx.fetchImpl,
+        });
+        steps.contactsSync = contacts.ok ? 'started' : contacts.code;
+        const history = await adapter.startBusinessAppSync({
+          config,
+          syncType: 'history',
+          settings,
+          fetchImpl: ctx.fetchImpl,
+        });
+        steps.historySync = history.ok ? 'started' : history.code;
+      } else {
+        const reg = await adapter.registerNumber({
+          config,
+          pin: config.twoStepPin,
+          settings,
+          fetchImpl: ctx.fetchImpl,
+        });
+        steps.register = reg.ok ? 'ok' : reg.code;
+        if (!reg.ok) throw new MessageGateError('PROVIDER_ERROR', undefined, { step: 'register', reason: reg.code });
+      }
+      const account = await api.create({
+        channel: 'whatsapp',
+        provider: 'meta',
+        name: data.name,
+        isDefault: data.isDefault,
+        config,
+      });
+      return { account, steps };
+    },
+
     async testConnection(documentId) {
       const row = await api.getRow(documentId);
       if (!row) throw new MessageGateError('NOT_FOUND');

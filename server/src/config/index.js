@@ -61,6 +61,22 @@ const schema = z
               .string()
               .regex(/^v\d{1,3}\.\d$/)
               .optional(),
+            // Meta Embedded Signup (README "Connect WhatsApp"): app ID and
+            // configuration ID are public; the app secret stays on the server.
+            embeddedSignup: z
+              .object({
+                appId: z
+                  .string()
+                  .regex(/^\d{5,25}$/)
+                  .optional(),
+                configId: z
+                  .string()
+                  .regex(/^\d{5,25}$/)
+                  .optional(),
+                appSecret: z.string().min(16).max(256).optional(),
+              })
+              .strict()
+              .prefault({}),
           })
           .strict()
           .prefault({}),

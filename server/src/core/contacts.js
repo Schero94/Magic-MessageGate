@@ -135,6 +135,41 @@ function createContacts(ctx) {
      * @param {number} id
      * @returns {Promise<object|null>}
      */
+    /**
+     * Masked recipients for message lists (no full numbers leave this call).
+     *
+     * @param {number[]} ids - Internal contact ids.
+     * @returns {Promise<Map<number, {id: string, phoneMasked: string|null}>>}
+     */
+    async recipientsByIds(ids) {
+      const unique = [...new Set(ids.filter((v) => v != null))];
+      const map = new Map();
+      if (!unique.length) return map;
+      const rows = await ctx.knex(T.contacts).whereIn('id', unique).select('id', 'document_id', 'phone_sealed');
+      for (const row of rows) {
+        const phone = row.phone_sealed ? tryOpen(row.phone_sealed, PHONE, ctx.encryptionKey) : null;
+        map.set(row.id, {
+          id: row.document_id,
+          phoneMasked: phone ? `${phone.slice(0, 4)}•••${phone.slice(-2)}` : null,
+        });
+      }
+      return map;
+    },
+
+    /**
+     * Internal contact id for a phone number, or null.
+     *
+     * @param {string} phone
+     * @param {string} country
+     * @returns {Promise<number|null>}
+     */
+    async idByPhone(phone, country = 'DE') {
+      const parsed = parsePhone(String(phone || ''), country);
+      if (!parsed.valid) return null;
+      const row = await ctx.knex(T.contacts).where('phone_hash', phoneHash(parsed.e164)).first('id');
+      return row ? row.id : null;
+    },
+
     async getRowById(id) {
       return (await ctx.knex(T.contacts).where('id', id).first()) || null;
     },
