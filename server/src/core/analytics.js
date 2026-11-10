@@ -66,6 +66,18 @@ function createAnalytics(ctx) {
         .groupBy('error_code')
         .orderBy('total', 'desc')
         .limit(10);
+      // Fallback usage: messages created as a fallback of another one.
+      const fallbacks = await base()
+        .whereNotNull('fallback_of')
+        .select('channel')
+        .count({ total: '*' })
+        .groupBy('channel');
+      // Meta pricing category of each sent WhatsApp message (cost estimate).
+      const costs = await base()
+        .whereNotNull('cost_category')
+        .select('cost_category')
+        .count({ total: '*' })
+        .groupBy('cost_category');
       const queue = await ctx
         .knex(T.messages)
         .whereIn('status', ['queued', 'uncertain'])
@@ -78,6 +90,11 @@ function createAnalytics(ctx) {
         byChannel: byChannel.map((r) => rates(num(r))),
         byTemplate: byTemplate.map((r) => rates(num(r))),
         failures: failures.map((r) => ({ code: r.error_code || 'UNKNOWN', total: Number(r.total) })),
+        fallbacks: {
+          total: fallbacks.reduce((n, r) => n + Number(r.total), 0),
+          byChannel: Object.fromEntries(fallbacks.map((r) => [r.channel, Number(r.total)])),
+        },
+        costCategories: Object.fromEntries(costs.map((r) => [r.cost_category, Number(r.total)])),
         queue: Object.fromEntries(queue.map((r) => [r.status, Number(r.total)])),
       };
     },

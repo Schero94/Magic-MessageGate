@@ -36,7 +36,9 @@ module.exports = {
       admin('POST', '/accounts/embedded-signup', 'completeEmbeddedSignup', 'accounts.manage'),
       admin('PUT', '/accounts/:id', 'updateAccount', 'accounts.manage'),
       admin('DELETE', '/accounts/:id', 'deleteAccount', 'accounts.manage'),
+      admin('GET', '/accounts/embedded-signup', 'embeddedSignupConfig', 'accounts.read'),
       admin('POST', '/accounts/:id/test', 'testAccount', 'accounts.manage'),
+      admin('POST', '/accounts/:id/verify-token', 'revealVerifyToken', 'accounts.manage'),
       admin('POST', '/accounts/:id/sync-templates', 'syncTemplates', 'templates.manage'),
 
       admin('GET', '/templates', 'listTemplates', 'templates.read'),

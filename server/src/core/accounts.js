@@ -478,6 +478,24 @@ function createAccounts(ctx) {
       return { account, steps };
     },
 
+    /**
+     * Meta webhook verify token of a manually connected number (admin only).
+     *
+     * @param {string} documentId
+     * @returns {Promise<{verifyToken: string|null}>}
+     */
+    async verifyToken(documentId) {
+      const row = await api.getRow(documentId);
+      if (!row || row.provider !== 'meta') throw new MessageGateError('NOT_FOUND');
+      return { verifyToken: decrypt(row).verifyToken || null };
+    },
+
+    /**
+     * Calls the provider with the stored credentials and records the health.
+     *
+     * @param {string} documentId
+     * @returns {Promise<{ok: boolean, code: string|null, info: object}>}
+     */
     async testConnection(documentId) {
       const row = await api.getRow(documentId);
       if (!row) throw new MessageGateError('NOT_FOUND');

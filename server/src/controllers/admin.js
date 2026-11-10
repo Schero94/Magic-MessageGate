@@ -79,8 +79,27 @@ module.exports = ({ strapi }) => {
   };
   const read = (fn) => async (ctx) => handle(ctx, () => fn(ctx), strapi);
 
+  /**
+   * Public Embedded Signup values; the app secret never leaves the server.
+   *
+   * @returns {{enabled: boolean, appId: string|null, configId: string|null, graphVersion: string, webhookUrl: string|null}}
+   */
+  const signupInfo = () => {
+    const c = core();
+    const signup = c.ctx.config.providers.meta.embeddedSignup || {};
+    return {
+      enabled: Boolean(signup.appId && signup.configId && signup.appSecret),
+      appId: signup.appId || null,
+      configId: signup.configId || null,
+      graphVersion: c.ctx.config.providers.meta.graphVersion || 'v23.0',
+      webhookUrl:
+        signup.verifyToken && c.ctx.publicUrl ? `${c.ctx.publicUrl}/api/magic-messagegate/webhooks/meta/app` : null,
+    };
+  };
+
   return {
     // Accounts
+    embeddedSignupConfig: read(() => signupInfo()),
     listAccounts: read(() => core().accounts.list()),
     createAccount: write((ctx) => core().accounts.create(ctx.request.body || {})),
     updateAccount: write((ctx) => core().accounts.update(paramId(ctx), ctx.request.body || {})),
@@ -90,6 +109,9 @@ module.exports = ({ strapi }) => {
     }),
     completeEmbeddedSignup: write((ctx) => core().accounts.completeEmbeddedSignup(ctx.request.body || {})),
     testAccount: write((ctx) => core().accounts.testConnection(paramId(ctx))),
+    // The Meta verify token must be pasted into the Meta app dashboard for
+    // manually connected numbers; POST (not GET) keeps it out of caches and logs.
+    revealVerifyToken: write((ctx) => core().accounts.verifyToken(paramId(ctx))),
     syncTemplates: write((ctx) => core().templates.syncFromMeta(paramId(ctx))),
 
     // Templates
@@ -135,7 +157,10 @@ module.exports = ({ strapi }) => {
     markMessageSent: write((ctx) => core().outbox.markSent(paramId(ctx))),
 
     // Contacts
-    listContacts: read((ctx) => core().contacts.list(listQuery(ctx.query))),
+    listContacts: read(async (ctx) => {
+      const settings = await core().settings.get();
+      return core().contacts.list({ ...listQuery(ctx.query), country: settings.defaultCountry });
+    }),
     getContact: read(async (ctx) => {
       const row = await core().contacts.getRow(paramId(ctx));
       if (!row) throw new MessageGateError('NOT_FOUND');
@@ -201,23 +226,12 @@ module.exports = ({ strapi }) => {
     }),
     getSettings: read(async () => {
       const { value, revision } = await core().settings.getWithRevision();
-      const signup = core().ctx.config.providers.meta.embeddedSignup || {};
       return {
         settings: value,
         revision,
         magicMailInstalled: Boolean(core().ctx.magicMail),
         publicUrl: core().ctx.publicUrl || null,
-        // Public values only; the app secret never leaves the server.
-        embeddedSignup: {
-          enabled: Boolean(signup.appId && signup.configId && signup.appSecret),
-          appId: signup.appId || null,
-          configId: signup.configId || null,
-          graphVersion: core().ctx.config.providers.meta.graphVersion || 'v23.0',
-          webhookUrl:
-            signup.verifyToken && core().ctx.publicUrl
-              ? `${core().ctx.publicUrl}/api/magic-messagegate/webhooks/meta/app`
-              : null,
-        },
+        embeddedSignup: signupInfo(),
       };
     }),
     updateSettings: write(async (ctx) => {

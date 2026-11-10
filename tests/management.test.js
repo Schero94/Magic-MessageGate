@@ -58,6 +58,11 @@ test('accounts: one default per channel; test connection records health', async 
   const [dto] = (await core.accounts.list()).filter((a) => a.id === core.wa.id);
   assert.equal(dto.health.status, 'error');
   assert.equal(dto.health.code, 'META_190');
+  // The verify token stays out of the DTO but can be revealed for the Meta dashboard.
+  assert.equal(dto.config.verifyToken, undefined);
+  const { verifyToken } = await core.accounts.verifyToken(core.wa.id);
+  assert.match(verifyToken, /^[A-Za-z0-9_-]{16,128}$/);
+  await assert.rejects(core.accounts.verifyToken(core.tg?.id || 'zzzzzzzz'), { code: 'NOT_FOUND' });
 });
 
 test('accounts: Telegram test registers the webhook with a secret and stores the bot name', async () => {
@@ -248,4 +253,6 @@ test('analytics: totals, delivery and read rates, failures, queue', async () => 
   assert.deepEqual(summary.failures, [{ code: 'META_131026', total: 1 }]);
   assert.equal(summary.byTemplate[0].template_key, 'order_shipped');
   assert.equal(summary.byChannel[0].channel, 'whatsapp');
+  assert.deepEqual(summary.fallbacks, { total: 0, byChannel: {} });
+  assert.equal(typeof summary.costCategories, 'object');
 });
