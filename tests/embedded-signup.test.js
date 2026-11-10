@@ -138,3 +138,48 @@ test('lookup: budget status reports the month, usage and limit', async () => {
   assert.equal(status.budget, DEFAULTS.lookup.monthlyBudget);
   assert.match(status.month, /^\d{4}-\d{2}$/);
 });
+
+test('webhooks: the app-level Meta URL verifies with the config token and applies statuses for any number', async () => {
+  const crypto = require('node:crypto');
+  const { fakeStrapi, makeCtx } = require('./helpers/strapi');
+  const webhookController = require('../server/src/controllers/webhooks');
+  const verifyToken = 'app-level-verify-token-0001';
+  const strapi = await fakeStrapi({
+    providers: { ...fake.providers, meta: { ...fake.providers.meta, embeddedSignup: { ...SIGNUP, verifyToken } } },
+  });
+  const controller = webhookController({ strapi });
+  const call = async ({ method = 'POST', raw = '', headers = {}, query = {} }) => {
+    const ctx = makeCtx({
+      method,
+      params: { provider: 'meta', path: 'app' },
+      query,
+      headers,
+      raw: method === 'POST' ? raw : undefined,
+      path: '/api/magic-messagegate/webhooks/meta/app',
+    });
+    await controller.receive(ctx);
+    return ctx;
+  };
+  const ok = await call({
+    method: 'GET',
+    query: { 'hub.mode': 'subscribe', 'hub.verify_token': verifyToken, 'hub.challenge': 'abc123' },
+  });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body, 'abc123');
+  const bad = await call({
+    method: 'GET',
+    query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'wrong-token-000000', 'hub.challenge': 'abc123' },
+  });
+  assert.equal(bad.status, 403);
+  const raw = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
+  const unsigned = await call({ raw, headers: { 'x-hub-signature-256': 'sha256=00' } });
+  assert.equal(unsigned.status, 401);
+  const sig = `sha256=${crypto.createHmac('sha256', SIGNUP.appSecret).update(raw).digest('hex')}`;
+  const signed = await call({ raw, headers: { 'x-hub-signature-256': sig } });
+  assert.equal(signed.status, 200);
+
+  const off = await fakeStrapi({ providers: fake.providers });
+  const offCtx = makeCtx({ method: 'GET', params: { provider: 'meta', path: 'app' }, query: {}, path: '/x' });
+  await webhookController({ strapi: off }).receive(offCtx);
+  assert.equal(offCtx.status, 401);
+});

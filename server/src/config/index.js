@@ -74,6 +74,11 @@ const schema = z
                   .regex(/^\d{5,25}$/)
                   .optional(),
                 appSecret: z.string().min(16).max(256).optional(),
+                // Verify token of the app-level webhook URL (…/webhooks/meta/app).
+                verifyToken: z
+                  .string()
+                  .regex(/^[A-Za-z0-9_-]{16,128}$/)
+                  .optional(),
               })
               .strict()
               .prefault({}),

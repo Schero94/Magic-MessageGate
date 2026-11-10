@@ -213,6 +213,10 @@ module.exports = ({ strapi }) => {
           appId: signup.appId || null,
           configId: signup.configId || null,
           graphVersion: core().ctx.config.providers.meta.graphVersion || 'v23.0',
+          webhookUrl:
+            signup.verifyToken && core().ctx.publicUrl
+              ? `${core().ctx.publicUrl}/api/magic-messagegate/webhooks/meta/app`
+              : null,
         },
       };
     }),

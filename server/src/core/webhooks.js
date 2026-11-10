@@ -74,12 +74,13 @@ function createWebhooks(ctx, deps) {
     /**
      * Meta GET verification (hub.challenge).
      *
-     * @param {object} account
+     * @param {object|null} account - Account row, or null for the app-level URL.
      * @param {Record<string,string>} query
+     * @param {object} [configOverride] - App-level config ({verifyToken, appSecret}).
      * @returns {{status: number, body: string}}
      */
-    metaVerify(account, query) {
-      const config = deps.accounts.configOf(account);
+    metaVerify(account, query, configOverride) {
+      const config = configOverride || deps.accounts.configOf(account);
       const ok =
         query['hub.mode'] === 'subscribe' &&
         typeof query['hub.challenge'] === 'string' &&
@@ -91,12 +92,14 @@ function createWebhooks(ctx, deps) {
     /**
      * Meta POST (statuses, inbound messages, template status updates).
      *
-     * @param {object} account
+     * @param {object|null} account - Account row, or null for the app-level URL.
      * @param {{headers: Record<string,string>, rawBody: Buffer, body: any}} request
+     * @param {object} [configOverride] - App-level config ({appSecret}); events are
+     *   matched by message id, so one app URL serves every Embedded Signup account.
      * @returns {Promise<{status: number}>}
      */
-    async meta(account, { headers, rawBody, body }) {
-      const config = deps.accounts.configOf(account);
+    async meta(account, { headers, rawBody, body }, configOverride) {
+      const config = configOverride || deps.accounts.configOf(account);
       if (!signatures.verifyMeta(rawBody, headers['x-hub-signature-256'], config.appSecret)) return { status: 401 };
       for (const entry of Array.isArray(body?.entry) ? body.entry.slice(0, 100) : []) {
         for (const change of Array.isArray(entry?.changes) ? entry.changes.slice(0, 100) : []) {

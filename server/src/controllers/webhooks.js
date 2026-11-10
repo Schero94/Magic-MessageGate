@@ -42,10 +42,16 @@ module.exports = ({ strapi }) => ({
     };
     if (!PROVIDERS.has(provider)) return unauthorized();
     const core = coreFor(strapi);
-    const account = await core.accounts.byWebhookPath(provider, path);
-    if (!account || !account.is_active) return unauthorized();
+    // One app-level URL for every Embedded Signup number: Meta sends all WABA
+    // events of a Tech Provider app to the app's single callback URL.
+    const signup = core.ctx.config.providers.meta.embeddedSignup || {};
+    const appLevel = provider === 'meta' && path === 'app';
+    if (appLevel && !(signup.appSecret && signup.verifyToken)) return unauthorized();
+    const appConfig = appLevel ? { appSecret: signup.appSecret, verifyToken: signup.verifyToken } : undefined;
+    const account = appLevel ? null : await core.accounts.byWebhookPath(provider, path);
+    if (!appLevel && (!account || !account.is_active)) return unauthorized();
 
-    const hits = await hit(core.ctx.knex, `webhook:${account.id}`, 60_000, 1, core.ctx.now());
+    const hits = await hit(core.ctx.knex, `webhook:${appLevel ? 'meta-app' : account.id}`, 60_000, 1, core.ctx.now());
     if (hits > core.ctx.config.rateLimits.webhookPerMinute) {
       ctx.status = 429;
       ctx.body = '';
@@ -60,7 +66,7 @@ module.exports = ({ strapi }) => ({
 
     try {
       if (provider === 'meta' && ctx.method === 'GET') {
-        const result = core.webhooks.metaVerify(account, ctx.query || {});
+        const result = core.webhooks.metaVerify(account, ctx.query || {}, appConfig);
         ctx.status = result.status;
         ctx.type = 'text/plain';
         ctx.body = result.body;
@@ -70,7 +76,7 @@ module.exports = ({ strapi }) => ({
       const { json, form } = parseBody(ctx);
       const rawBody = ctx.state.messagegateRaw || Buffer.alloc(0);
       let result;
-      if (provider === 'meta') result = await core.webhooks.meta(account, { headers, rawBody, body: json });
+      if (provider === 'meta') result = await core.webhooks.meta(account, { headers, rawBody, body: json }, appConfig);
       else if (provider === 'telegram') result = await core.webhooks.telegram(account, { headers, body: json });
       else if (provider === 'seven')
         result = await core.webhooks.seven(account, { headers, rawBody, body: json, url, method: 'POST' });
