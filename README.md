@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/icon.png" width="96" height="96" alt="Magic MessageGate icon" /></p>
+
 # Magic MessageGate
 
 **WhatsApp, Telegram and SMS for Strapi 5, with templates, delivery tracking and automatic fallback.**

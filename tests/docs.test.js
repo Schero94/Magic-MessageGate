@@ -23,7 +23,7 @@ test('docs: every local file the Pages site references exists', () => {
 test('docs: README images and in-page anchors resolve', () => {
   const readme = readFileSync(path.join(root, 'README.md'), 'utf8');
   for (const [, file] of readme.matchAll(
-    /raw\.githubusercontent\.com\/Schero94\/Magic-MessageGate\/main\/([^)\s]+)/g
+    /raw\.githubusercontent\.com\/Schero94\/Magic-MessageGate\/main\/([^)\s"]+)/g
   )) {
     assert.ok(existsSync(path.join(root, file)), `README image missing: ${file}`);
   }
