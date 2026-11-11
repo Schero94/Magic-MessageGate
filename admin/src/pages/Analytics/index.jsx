@@ -4,7 +4,6 @@ import {
   Field,
   Flex,
   Grid,
-  ProgressBar,
   SingleSelect,
   SingleSelectOption,
   Table,
@@ -65,9 +64,10 @@ const Rate = ({ rate, label, locale }) => (
   <Flex direction="column" alignItems="stretch" gap={1} minWidth="9rem">
     <Typography textColor="neutral800">{formatRate(rate === null ? null : rate / 100, locale)}</Typography>
     {rate !== null ? (
-      <ProgressBar value={rate} size="S">
-        {label}
-      </ProgressBar>
+      // Decorative bar; the percentage above is the accessible value.
+      <Box background="neutral150" hasRadius height="0.6rem" width="100%" overflow="hidden" aria-hidden title={label}>
+        <Box background="success500" height="100%" width={`${Math.max(0, Math.min(100, rate))}%`} />
+      </Box>
     ) : null}
   </Flex>
 );

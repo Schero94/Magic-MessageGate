@@ -64,13 +64,22 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
     [templates, form.channel]
   );
   const keys = [...new Set(usable.map((tpl) => tpl.key))];
-  const variants = usable.filter((tpl) => tpl.key === form.template);
-  const selected = variants.find((tpl) => tpl.language === form.language) || variants[0] || null;
-  const variables = selected
-    ? selected.variables?.length
-      ? selected.variables
-      : templateVariables(selected).map((name) => ({ name, required: true }))
-    : [];
+  // A key can exist per channel and language. Languages are offered once;
+  // the preview shows the variant of the first channel in routing order and
+  // the form asks for the variables of every channel variant of that language.
+  const byChannel = (a, b) => CHANNELS.indexOf(a.channel) - CHANNELS.indexOf(b.channel);
+  const variants = usable.filter((tpl) => tpl.key === form.template).sort(byChannel);
+  const languages = [...new Set(variants.map((tpl) => tpl.language))];
+  const language = languages.includes(form.language) ? form.language : languages[0];
+  const sameLanguage = variants.filter((tpl) => tpl.language === language);
+  const selected = sameLanguage[0] || null;
+  const variables = [];
+  for (const tpl of sameLanguage) {
+    const defs = tpl.variables?.length
+      ? tpl.variables
+      : templateVariables(tpl).map((name) => ({ name, required: true }));
+    for (const v of defs) if (!variables.some((x) => x.name === v.name)) variables.push(v);
+  }
   const isText = form.template === FREE_TEXT || !rbac.templates.read;
 
   const set = (key, value) => {
@@ -99,7 +108,7 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
     if (isText) body.text = form.text.trim();
     else {
       body.template = form.template;
-      if (selected?.language) body.language = selected.language;
+      if (language) body.language = language;
       body.variables = Object.fromEntries(
         variables.map((v) => [v.name, String(form.variables[v.name] ?? '').trim()]).filter(([, value]) => value)
       );
@@ -178,7 +187,7 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
                   </Field.Root>
                 </Grid.Item>
                 {rbac.templates.read ? (
-                  <Grid.Item col={variants.length > 1 ? 6 : 12} xs={12} direction="column" alignItems="stretch">
+                  <Grid.Item col={languages.length > 1 ? 6 : 12} xs={12} direction="column" alignItems="stretch">
                     <Field.Root name="template" required error={errors.template}>
                       <Field.Label>{t('send.template', 'Content')}</Field.Label>
                       <SingleSelect
@@ -192,7 +201,7 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
                       >
                         {keys.map((key) => (
                           <SingleSelectOption key={key} value={key}>
-                            {usable.find((tpl) => tpl.key === key)?.name || key}
+                            {usable.filter((tpl) => tpl.key === key).sort(byChannel)[0]?.name || key}
                           </SingleSelectOption>
                         ))}
                         <SingleSelectOption value={FREE_TEXT}>
@@ -203,14 +212,14 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
                     </Field.Root>
                   </Grid.Item>
                 ) : null}
-                {variants.length > 1 ? (
+                {languages.length > 1 ? (
                   <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
                     <Field.Root name="language">
                       <Field.Label>{t('send.language', 'Language')}</Field.Label>
-                      <SingleSelect value={selected?.language} onChange={(value) => set('language', value)}>
-                        {variants.map((tpl) => (
-                          <SingleSelectOption key={tpl.id} value={tpl.language}>
-                            {`${tpl.language} · ${channels[tpl.channel]}`}
+                      <SingleSelect value={language} onChange={(value) => set('language', value)}>
+                        {languages.map((code) => (
+                          <SingleSelectOption key={code} value={code}>
+                            {code}
                           </SingleSelectOption>
                         ))}
                       </SingleSelect>
