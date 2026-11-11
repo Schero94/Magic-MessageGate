@@ -1,0 +1,97 @@
+# Checks every pull request and push to a non-main branch on the Node versions
+# Strapi 5.61 supports: lint, formatting, build (with the server bundle runtime
+# check), unit and multi-process tests on SQLite, package verification, package
+# contents and a production audit. A second job runs the exactly-once outbox
+# suite against PostgreSQL 16 (tests/pg).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      # Only the native SQLite binding runs its install script (multi-process tests on SQLite).
+      - name: Build better-sqlite3
+        run: npm rebuild better-sqlite3
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Build (includes verify:runtime)
+        run: npm run build
+      - name: Tests
+        run: npm test
+      - name: Verify package
+        run: npm run verify
+      - name: Server bundle runtime check
+        run: npm run verify:runtime
+      - name: Package contents
+        run: npm pack --dry-run
+      - name: Production audit
+        run: npm audit --omit=dev --audit-level=high
+
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The image is pinned by the digest of its multi-arch index (tag
+    # 16.15-alpine). Dependabot does not update service images in workflows,
+    # so CONTRIBUTING.md describes how to refresh it.
+    services:
+      postgres:
+        image: postgres:16.15-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+        env:
+          POSTGRES_USER: mg
+          POSTGRES_PASSWORD: mg-ci-only
+          POSTGRES_DB: mg_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mg -d mg_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Outbox on PostgreSQL (8 processes, exactly once)
+        run: npm run test:pg
+        env:
+          MG_TEST_PG_URL: postgres://mg:mg-ci-only@127.0.0.1:5432/mg_test
