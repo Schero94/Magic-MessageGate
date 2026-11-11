@@ -342,7 +342,7 @@ export const TemplateEditorPage = () => {
           ) : null}
 
           <Grid.Root gap={6}>
-            <Grid.Item col={7} s={12} direction="column" alignItems="stretch">
+            <Grid.Item col={7} xs={12} s={12} direction="column" alignItems="stretch">
               <Flex direction="column" alignItems="stretch" gap={6}>
                 <SectionCard title={t('editor.basics', 'Basics')}>
                   <Grid.Root gap={4}>
@@ -829,7 +829,7 @@ export const TemplateEditorPage = () => {
                 </SectionCard>
               </Flex>
             </Grid.Item>
-            <Grid.Item col={5} s={12} direction="column" alignItems="stretch">
+            <Grid.Item col={5} xs={12} s={12} direction="column" alignItems="stretch">
               <Box position="sticky" top={4} width="100%">
                 <SectionCard title={t('editor.preview', 'Preview')}>
                   <TemplatePreview draft={{ ...draft, variables }} />

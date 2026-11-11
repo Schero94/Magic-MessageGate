@@ -85,6 +85,17 @@ test('source contract: Design System tokens only, native dialogs, no CSS variabl
   }
 });
 
+test('source contract: narrow Grid items stack on phones (DS uses col below 520 px unless xs is set)', () => {
+  for (const file of sources()) {
+    if (file.includes('widgets')) continue;
+    const src = fs.readFileSync(file, 'utf8');
+    for (const tag of src.match(/<Grid\.Item\b[^>]*>/g) || []) {
+      const col = /col=\{(\d+)\}/.exec(tag);
+      if (col && col[1] !== '12') assert.match(tag, /xs=/, `${path.relative(ADMIN, file)}: ${tag}`);
+    }
+  }
+});
+
 test('source contract: sections are RBAC gated and destructive actions use ConfirmAction', () => {
   const app = fs.readFileSync(path.join(ADMIN, 'pages', 'App.jsx'), 'utf8');
   for (const group of ['messages', 'templates', 'contacts', 'accounts', 'analytics', 'settings'])

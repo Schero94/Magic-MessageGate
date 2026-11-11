@@ -505,7 +505,7 @@
   "settings.retention": "Conservación de datos",
   "settings.retention.messages": "Conservar mensajes",
   "settings.retention.messages.hint": "Contenidos e historial de los mensajes. Las estadísticas se mantienen.",
-  "settings.retention.receipts": "Conservar recepciones de webhooks sin procesar",
+  "settings.retention.receipts": "Conservar webhooks sin procesar",
   "settings.retention.receipts.hint": "Sirve para ignorar devoluciones duplicadas de los proveedores.",
   "settings.retention.subtitle": "Los datos más antiguos se borran automáticamente cada noche.",
   "settings.routing": "Enrutamiento y alternativa",

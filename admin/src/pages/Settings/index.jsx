@@ -222,7 +222,7 @@ export const SettingsPage = () => {
                       ) : null}
                     </Flex>
                     <Grid.Root gap={4}>
-                      <Grid.Item col={4} s={12} direction="column" alignItems="stretch">
+                      <Grid.Item col={4} xs={12} s={12} direction="column" alignItems="stretch">
                         <TagListField
                           name={`routing.rules.${i}.templateKeys`}
                           kind="templateKey"
@@ -233,7 +233,7 @@ export const SettingsPage = () => {
                           onChange={(list) => updateRule(i, { templateKeys: list })}
                         />
                       </Grid.Item>
-                      <Grid.Item col={4} s={12} direction="column" alignItems="stretch">
+                      <Grid.Item col={4} xs={12} s={12} direction="column" alignItems="stretch">
                         <TagListField
                           name={`routing.rules.${i}.countries`}
                           kind="country"
@@ -244,7 +244,7 @@ export const SettingsPage = () => {
                           onChange={(list) => updateRule(i, { countries: list })}
                         />
                       </Grid.Item>
-                      <Grid.Item col={4} s={12} direction="column" alignItems="stretch">
+                      <Grid.Item col={4} xs={12} s={12} direction="column" alignItems="stretch">
                         <TagListField
                           name={`routing.rules.${i}.tags`}
                           kind="tag"
