@@ -84,3 +84,15 @@ test(
     for (const res of fake.hanging) res.destroy();
   }
 );
+
+test('analytics aggregates (rates, fallbacks, pricing categories) run on PostgreSQL', async () => {
+  const { core } = await seed(knex, fake, 5);
+  await core.drain?.();
+  const two = (await knex('mg_messages').orderBy('id').limit(2).select('id')).map((r) => r.id);
+  await knex('mg_messages').whereIn('id', two).update({ cost_category: 'utility' });
+  const summary = await core.analytics.summary({});
+  assert.equal(summary.totals.total, 5);
+  assert.equal(typeof summary.fallbacks.total, 'number');
+  assert.equal(summary.costCategories.utility, 2);
+  assert.ok(Array.isArray(summary.byChannel));
+});
