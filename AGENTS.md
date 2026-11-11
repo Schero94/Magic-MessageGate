@@ -77,6 +77,12 @@ const result = await mg.service('messages').send({
 
 Unknown fields are rejected (`INVALID_REQUEST`).
 
+### Variables in WhatsApp buttons
+
+- **URL buttons:** Meta lets one variable sit at the **end** of an approved URL, for example `https://shop.example/track/{{order_id}}`. MessageGate sends only the value; WhatsApp appends it to the approved URL. The value must be the URL suffix (`A-10423`), never a full URL. Only the first placeholder of a URL button is used.
+- **Copy-code buttons:** set `variable` on the button; the value is cut to 15 characters, Meta's limit.
+- Body, header and button variables all come from the same `variables` object.
+
 ## Content API (for other services)
 
 Base path `/api/magic-messagegate`. Authenticate with a Strapi API token (`Authorization: Bearer <token>`) that has the MessageGate permissions. Bodies may be wrapped in `{ "data": … }`.

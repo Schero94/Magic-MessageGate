@@ -187,6 +187,8 @@ await messages.send({
 const detail = await messages.get(id); // status, timeline, fallbacks
 ```
 
+**Variables in WhatsApp buttons.** A URL button can end in one variable, for example `https://shop.example/track/{{order_id}}`. Pass only the suffix (`order_id: 'A-10423'`); WhatsApp appends it to the URL Meta approved, so a variable can never point the button at another site. Copy-code buttons take their value from `variables` too (at most 15 characters).
+
 ### From another service (Content API)
 
 Create a Strapi API token (Settings → API Tokens) with the MessageGate permissions, then:
@@ -346,7 +348,7 @@ npm run test:pg   # 8 processes on PostgreSQL (set MG_TEST_PG_URL)
 npm run build && npm run verify
 ```
 
-Issues and pull requests are welcome at [github.com/Schero94/Magic-MessageGate](https://github.com/Schero94/Magic-MessageGate/issues). The design decisions are in [CONCEPT.md](./CONCEPT.md).
+Issues and pull requests are welcome at [github.com/Schero94/Magic-MessageGate](https://github.com/Schero94/Magic-MessageGate/issues). See [CONTRIBUTING.md](./CONTRIBUTING.md) for the checks, the 8-process acceptance run and releases; the design decisions are in [CONCEPT.md](./CONCEPT.md).
 
 ## License
 
