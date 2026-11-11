@@ -1,153 +1,306 @@
 'use strict';
 
-const assert = require('node:assert/strict');
-const { EventEmitter } = require('node:events');
-const path = require('node:path');
+/** Plugin wiring: routes and RBAC, lifecycle, controllers, raw-body middleware, services. */
 const test = require('node:test');
+const assert = require('node:assert/strict');
+const http = require('node:http');
+
 const plugin = require('../server/src');
-const strapiPackageDirectory = path.dirname(require.resolve('@strapi/strapi/package.json'));
-const adminPackageDirectory = path.dirname(require.resolve('@strapi/admin/package.json', { paths: [strapiPackageDirectory] }));
-const strapiPoliciesDirectory = path.join(adminPackageDirectory, 'dist/server/server/src/policies');
-const isAuthenticatedAdmin = require(path.join(strapiPoliciesDirectory, 'isAuthenticatedAdmin.js'));
-const hasPermissions = require(path.join(strapiPoliciesDirectory, 'hasPermissions.js'));
+const { ACTIONS } = require('../server/src/permissions');
+const { createRawBodyMiddleware, PRIVATE_TYPE } = require('../server/src/utils/raw-body');
+const { startFakeProviders } = require('./helpers/fake-providers');
+const { fakeStrapi, makeCtx } = require('./helpers/strapi');
+const { CREDS, PHONE } = require('./helpers/core');
 
-const expectedPermissions = [
-  'overview.access',
-  'status.view',
-  'connection.manage',
-  'templates.list',
-  'templates.edit',
-  'messages.send',
-];
-
-test('registers distinct server-side permissions for each privileged capability', async () => {
-  const registrations = [];
-  const strapi = {
-    admin: {
-      services: {
-        permission: {
-          actionProvider: { registerMany: async (actions) => registrations.push(...actions) },
-        },
-      },
-    },
-  };
-
-  await plugin.bootstrap({ strapi });
-  assert.deepEqual(registrations.map(({ uid }) => uid).sort(), expectedPermissions.sort());
-  assert.ok(registrations.every(({ pluginName, section }) => pluginName === 'magic-whatsapp' && section === 'plugins'));
-  assert.ok(registrations.every(({ displayName }) => typeof displayName === 'string' && displayName.length > 0));
+let fake;
+test.before(async () => {
+  fake = await startFakeProviders();
 });
+test.after(() => fake.close());
+test.beforeEach(() => fake.reset());
 
-test('protects every admin endpoint with authenticated-admin and capability permission policies', () => {
-  const routes = plugin.routes.admin.routes;
-  const requiredPolicies = ['admin::isAuthenticatedAdmin', 'admin::hasPermissions'];
-  const requiredRoutes = new Map([
-    ['GET /status', 'plugin::magic-whatsapp.status.view'],
-    ['POST /connection', 'plugin::magic-whatsapp.connection.manage'],
-    ['DELETE /connection', 'plugin::magic-whatsapp.connection.manage'],
-    ['GET /connection/qr', 'plugin::magic-whatsapp.connection.manage'],
-    ['DELETE /connection/session', 'plugin::magic-whatsapp.connection.manage'],
-    ['GET /templates', 'plugin::magic-whatsapp.templates.list'],
-    ['POST /templates', 'plugin::magic-whatsapp.templates.edit'],
-    ['PUT /templates/:id', 'plugin::magic-whatsapp.templates.edit'],
-    ['DELETE /templates/:id', 'plugin::magic-whatsapp.templates.edit'],
-    ['POST /messages', 'plugin::magic-whatsapp.messages.send'],
-    ['POST /messages/templates', 'plugin::magic-whatsapp.messages.send'],
-  ]);
-
-  assert.deepEqual(new Set(routes.map(({ method, path }) => `${method} ${path}`)), new Set(requiredRoutes.keys()));
-  for (const route of routes) {
-    const policies = route.config?.policies || [];
-    assert.ok(policies.includes(requiredPolicies[0]), `${route.method} ${route.path} must require admin authentication`);
-    const permissionPolicy = policies.find((policy) => typeof policy === 'object' && policy.name === 'admin::hasPermissions');
-    assert.ok(permissionPolicy, `${route.method} ${route.path} must require server-side permission checks`);
-    assert.deepEqual(permissionPolicy?.config?.actions, [requiredRoutes.get(`${route.method} ${route.path}`)]);
-    assert.notEqual(route.config.auth, false, `${route.method} ${route.path} must not be public`);
-  }
-});
-
-test('Strapi 5.57 admin policies deny anonymous and restricted admins, and allow the scoped action', () => {
+test('routes: every admin route needs an admin session and a registered RBAC action', () => {
+  const known = new Set(ACTIONS.map((a) => `plugin::magic-messagegate.${a.uid}`));
+  const used = new Set();
   for (const route of plugin.routes.admin.routes) {
-    const requiredAction = route.config.policies
-      .find((policy) => typeof policy === 'object' && policy.name === 'admin::hasPermissions')
-      .config.actions[0];
-    assert.equal(isAuthenticatedAdmin({ state: { isAuthenticated: false } }), false, `${route.method} ${route.path} denies anonymous callers`);
-    assert.equal(isAuthenticatedAdmin({ state: { isAuthenticated: true } }), true, `${route.method} ${route.path} accepts an authenticated admin`);
-
-    const deniedContext = { state: { userAbility: { can: () => false } } };
-    assert.equal(hasPermissions.handler(deniedContext, { actions: [requiredAction] }), false, `${route.method} ${route.path} denies an admin without its scoped action`);
-
-    const allowedContext = { state: { userAbility: { can: (action) => action === requiredAction } } };
-    assert.equal(hasPermissions.handler(allowedContext, { actions: [requiredAction] }), true, `${route.method} ${route.path} permits its scoped action`);
+    const [auth, rbac] = route.config.policies;
+    assert.equal(auth, 'admin::isAuthenticatedAdmin', `${route.method} ${route.path}`);
+    assert.equal(rbac.name, 'admin::hasPermissions');
+    for (const action of rbac.config.actions) {
+      assert.ok(known.has(action), action);
+      used.add(action);
+    }
+    const [controller, handler] = route.handler.split('.');
+    assert.equal(typeof plugin.controllers[controller]({ strapi: {} })[handler], 'function', route.handler);
+  }
+  assert.equal(used.size, known.size, 'every RBAC action is used by a route');
+  for (const route of plugin.routes['content-api'].routes) {
+    if (route.config.auth === false) assert.match(route.path, /^\/webhooks\/:provider\/:path$/);
   }
 });
 
-test('keeps plugin actions and WhatsApp transports out of the public content API', () => {
-  assert.deepEqual(plugin.routes['content-api'].routes, []);
-  assert.equal(typeof plugin.services.whatsapp, 'function');
-  const controller = plugin.controllers.whatsapp({ strapi: {} });
-  assert.equal(typeof controller.status, 'function');
-  assert.equal(typeof controller.sendMessage, 'function');
+test('config: defaults pass the validator; invalid config is rejected', () => {
+  const defaults = plugin.config.default();
+  plugin.config.validator(defaults);
+  assert.throws(() => plugin.config.validator({ worker: { intervalMs: 1 } }));
+  assert.throws(() => plugin.config.validator({ unknown: true }));
+  assert.throws(() => plugin.config.validator({ providers: { meta: { baseUrl: 'not a url' } } }));
 });
 
-test('routes Magic Link provider calls through the registered internal service and fake transport', async () => {
-  const calls = [];
-  const socket = {
-    ev: new EventEmitter(),
-    onWhatsApp: async (jid) => [{ exists: true, jid }],
-    sendMessage: async (jid, content) => calls.push({ method: 'sendMessage', jid, content }),
-    end: async () => {},
+test('lifecycle: register mounts the raw-body middleware; bootstrap creates tables, RBAC and timers; destroy stops them', async () => {
+  const strapi = await fakeStrapi({ worker: { enabled: true, intervalMs: 1000 } });
+  const middlewares = [];
+  const registered = [];
+  strapi.server = { use: (fn) => middlewares.push(fn) };
+  strapi.service = (uid) => {
+    assert.equal(uid, 'admin::permission');
+    return { actionProvider: { registerMany: async (list) => registered.push(...list) } };
   };
-  let socketFactoryCalls = 0;
-  const strapi = {
-    dirs: { app: { root: '/tmp/magic-whatsapp-registry-test' } },
-    store: () => ({ get: async () => [], set: async () => {} }),
-  };
-  const service = plugin.services.whatsapp({ strapi }, {
-    loadBaileys: async () => ({
-      useMultiFileAuthState: async () => ({ state: {}, saveCreds: async () => {} }),
-      Browsers: { ubuntu: (name) => ['fake-linux', name, '0.0.0'] },
-      default: async () => {
-        socketFactoryCalls += 1;
-        setImmediate(() => socket.ev.emit('connection.update', { connection: 'open' }));
-        return socket;
-      },
-    }),
-    authDirectory: {
-      directory: '/tmp/magic-whatsapp-registry-test/.whatsapp-auth',
-      ensure: async () => '/tmp/magic-whatsapp-registry-test/.whatsapp-auth',
-      clear: async () => {},
+  plugin.register({ strapi });
+  assert.equal(middlewares.length, 1);
+  await plugin.bootstrap({ strapi });
+  assert.equal(registered.length, ACTIONS.length);
+  assert.ok(registered.every((a) => a.section === 'plugins' && a.pluginName === 'magic-messagegate'));
+  assert.ok(await strapi.db.connection.schema.hasTable('mg_messages'));
+  assert.ok(strapi.logs.some(([level, m]) => level === 'info' && /ready \(worker on\)/.test(m)));
+  plugin.destroy({ strapi });
+});
+
+test('raw-body middleware keeps the exact bytes and hides the body from the JSON parser', async () => {
+  const mw = createRawBodyMiddleware({ pathPrefix: '/api/magic-messagegate/webhooks/', limit: 64 });
+  const seen = [];
+  const server = http.createServer(async (req, res) => {
+    const ctx = {
+      method: req.method,
+      path: req.url,
+      req,
+      state: {},
+      get: (h) => req.headers[h.toLowerCase()] || '',
+      status: 200,
+      body: '',
+    };
+    await mw(ctx, async () => {
+      seen.push({
+        raw: ctx.state.messagegateRaw?.toString('utf8'),
+        type: req.headers['content-type'],
+        original: ctx.state.messagegateContentType,
+      });
+    });
+    res.writeHead(ctx.status);
+    res.end();
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const body = '{"a": 1,  "b":"ü"}';
+    let r = await fetch(`${url}/api/magic-messagegate/webhooks/meta/x`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(seen[0], { raw: body, type: PRIVATE_TYPE, original: 'application/json' });
+    r = await fetch(`${url}/api/magic-messagegate/webhooks/meta/x`, { method: 'POST', body: 'x'.repeat(65) });
+    assert.equal(r.status, 413);
+    r = await fetch(`${url}/api/other`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+    assert.equal(seen[1].raw, undefined, 'other paths are untouched');
+    assert.equal(seen[1].type, 'application/json');
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+async function apiSetup(config = {}) {
+  const strapi = await fakeStrapi({ providers: fake.providers, ...config });
+  const core = strapi.core;
+  await core.accounts.create({ channel: 'sms', provider: 'seven', name: 'SMS', config: CREDS.seven });
+  await core.templates.create({
+    key: 'hello',
+    channel: 'sms',
+    language: 'de',
+    name: 'Hello',
+    content: { text: 'Hallo {{name}}' },
+  });
+  const { row } = await core.contacts.upsertByPhone(PHONE);
+  await core.contacts.setConsent(row.id, 'sms', 'granted', 'test');
+  const api = plugin.controllers['content-api']({ strapi });
+  const admin = plugin.controllers.admin({ strapi });
+  const token = { auth: { strategy: { name: 'api-token' }, credentials: { id: 7 } } };
+  return { strapi, core, api, admin, token };
+}
+
+test('content API: 202 on new, 200 on duplicate, Strapi error shape on invalid input', async () => {
+  const { api, token, core } = await apiSetup();
+  const body = {
+    data: {
+      to: PHONE,
+      channel: 'sms',
+      template: 'hello',
+      language: 'de',
+      variables: { name: 'Ana' },
+      idempotencyKey: 'x1',
     },
-    logger: { level: 'silent' },
-    connectTimeoutMs: 100,
-    reconnectDelays: [],
-  });
+  };
+  let ctx = makeCtx({ method: 'POST', body, state: token });
+  await api.send(ctx);
+  assert.equal(ctx.status, 202);
+  assert.equal(ctx.body.data.status, 'queued');
+  const id = ctx.body.data.id;
+  ctx = makeCtx({ method: 'POST', body, state: token });
+  await api.send(ctx);
+  assert.equal(ctx.status, 200);
+  assert.equal(ctx.body.data.id, id);
 
-  assert.equal(typeof service.getStatus, 'function');
-  assert.equal(typeof service.sendMagicLink, 'function');
-  assert.equal(service.getStatus().state, 'disconnected');
-  assert.equal(socketFactoryCalls, 0, 'plugin creation must not connect to WhatsApp');
+  ctx = makeCtx({ method: 'POST', body: { data: { to: PHONE } }, state: token });
+  await api.send(ctx);
+  assert.equal(ctx.status, 400);
+  assert.equal(ctx.body.data, null);
+  assert.equal(ctx.body.error.name, 'ValidationError');
+  assert.equal(ctx.body.error.details.code, 'INVALID_REQUEST');
 
-  const connection = await service.connect();
-  assert.equal(connection.state, 'connected');
-  assert.equal(service.getStatus().state, 'connected');
-  const result = await service.sendMagicLink({
-    phoneNumber: '+15555550123',
-    loginUrl: 'https://example.test/api/magic-link/login?loginToken=fake-only',
-    expiresInSeconds: 300,
-  });
+  await core.outbox.tick();
+  ctx = makeCtx({ params: { id }, state: token });
+  await api.status(ctx);
+  assert.equal(ctx.status, 200);
+  assert.equal(ctx.body.data.status, 'sent');
+  assert.deepEqual(
+    ctx.body.data.timeline.map((e) => e.type),
+    ['queued', 'sent']
+  );
+  assert.ok(!JSON.stringify(ctx.body).includes('15123456789'));
 
-  assert.deepEqual(result, { success: true });
-  assert.equal(socketFactoryCalls, 1);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].jid, '15555550123@s.whatsapp.net');
-  assert.match(calls[0].content.text, /https:\/\/example\.test\/api\/magic-link\/login\?loginToken=fake-only/);
-  assert.match(calls[0].content.text, /5 Minuten/);
-  await service.shutdown();
+  ctx = makeCtx({ params: { id: '../../etc' }, state: token });
+  await api.status(ctx);
+  assert.equal(ctx.status, 404);
 });
 
-test('rejects unsupported provider configuration instead of accepting unsafe options', () => {
-  assert.throws(() => plugin.config.validator({ socketFactory: 'not-a-factory' }), /socketFactory must be a function/);
-  assert.throws(() => plugin.config.validator({ authDirectory: '/tmp/shared-auth' }), /unsupported options/);
-  assert.doesNotThrow(() => plugin.config.validator({ socketFactory: null }));
+test('content API: send rate limit per token answers 429 with Retry-After', async () => {
+  const { api, token } = await apiSetup({ rateLimits: { sendPerMinute: 2 } });
+  const statuses = [];
+  let last;
+  for (let i = 0; i < 3; i += 1) {
+    last = makeCtx({
+      method: 'POST',
+      body: { to: PHONE, channel: 'sms', template: 'hello', language: 'de', variables: { name: 'A' } },
+      state: token,
+    });
+    await api.send(last);
+    statuses.push(last.status);
+  }
+  assert.deepEqual(statuses, [202, 202, 429]);
+  assert.equal(last.headers['Retry-After'], '60');
+  assert.equal(last.body.error.details.code, 'RATE_LIMITED');
+});
+
+test('content API: consent and lookup', async () => {
+  const { api, token, core } = await apiSetup();
+  let ctx = makeCtx({
+    method: 'POST',
+    body: { phone: '0170 1234567', channel: 'whatsapp', status: 'granted' },
+    state: token,
+  });
+  await api.consent(ctx);
+  assert.equal(ctx.status, 200);
+  const row = await core.contacts.getRow(ctx.body.data.contactId);
+  assert.equal(await core.contacts.consentStatus(row.id, 'whatsapp'), 'granted');
+  ctx = makeCtx({ method: 'POST', body: { phone: PHONE, extra: 1 }, state: token });
+  await api.lookup(ctx);
+  assert.equal(ctx.status, 400);
+  ctx = makeCtx({ method: 'POST', body: { phone: PHONE }, state: token });
+  await api.lookup(ctx);
+  assert.equal(ctx.body.data.valid, true);
+});
+
+test('admin API: masked accounts, error mapping, write rate limit', async () => {
+  const { admin } = await apiSetup({ rateLimits: { adminWritePerMinute: 3 } });
+  const user = { id: 1 };
+  let ctx = makeCtx({
+    method: 'POST',
+    body: { channel: 'whatsapp', provider: 'meta', name: 'WA', config: CREDS.meta },
+    user,
+  });
+  await admin.createAccount(ctx);
+  assert.equal(ctx.status, 200);
+  assert.ok(!JSON.stringify(ctx.body).includes(CREDS.meta.accessToken));
+  ctx = makeCtx({ method: 'POST', body: { channel: 'whatsapp', provider: 'meta', name: 'WA', config: {} }, user });
+  await admin.createAccount(ctx);
+  assert.equal(ctx.status, 400);
+  assert.equal(ctx.body.error.details.code, 'CONFIG_INVALID');
+  ctx = makeCtx({ method: 'POST', params: { id: 'zzzzzzzzzz' }, body: {}, user });
+  await admin.retryMessage(ctx);
+  assert.equal(ctx.status, 404);
+  ctx = makeCtx({ method: 'POST', body: {}, user });
+  await admin.createAccount(ctx);
+  assert.equal(ctx.status, 429);
+  ctx = makeCtx({ query: { status: 'bogus' }, user });
+  await admin.listMessages(ctx);
+  assert.equal(ctx.status, 400);
+  ctx = makeCtx({ user });
+  await admin.getSettings(ctx);
+  assert.equal(ctx.body.data.revision, 0);
+  assert.equal(ctx.body.data.magicMailInstalled, false);
+});
+
+test('service API: send, get, contacts and Telegram link', async () => {
+  const { strapi } = await apiSetup();
+  const services = plugin.services;
+  const messages = services.messages({ strapi });
+  const sent = await messages.send({
+    to: PHONE,
+    channel: 'sms',
+    template: 'hello',
+    language: 'de',
+    variables: { name: 'Ana' },
+  });
+  assert.equal(sent.status, 'queued');
+  assert.equal((await messages.get(sent.id)).source, 'service');
+  const contact = await services.contacts({ strapi }).upsert('+4917612345678');
+  await services.contacts({ strapi }).grantConsent(contact.id, 'sms');
+  const link = await services.telegram({ strapi }).createLink(contact.id);
+  assert.equal(link.url, null, 'no Telegram account configured yet');
+  assert.match(link.token, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal((await services.lookup({ strapi }).check(PHONE)).valid, true);
+});
+
+test('content API: only API tokens by default; users-permissions logins need the opt-in', async () => {
+  const body = { to: PHONE, channel: 'sms', template: 'hello', language: 'de', variables: { name: 'A' } };
+  const endUser = { auth: { strategy: { name: 'users-permissions' }, credentials: { id: 3 } } };
+  let { api } = await apiSetup();
+  for (const [handler, ctx] of [
+    ['send', makeCtx({ method: 'POST', body, state: endUser })],
+    ['status', makeCtx({ params: { id: 'abcdef12' }, state: endUser })],
+    ['consent', makeCtx({ method: 'POST', body: { phone: PHONE, channel: 'sms', status: 'granted' }, state: endUser })],
+    ['telegramLink', makeCtx({ method: 'POST', body: { phone: PHONE }, state: endUser })],
+    ['lookup', makeCtx({ method: 'POST', body: { phone: PHONE }, state: endUser })],
+    ['send', makeCtx({ method: 'POST', body, state: {} })],
+  ]) {
+    await api[handler](ctx);
+    assert.equal(ctx.status, 403, handler);
+    assert.equal(ctx.body.error.details.code, 'FORBIDDEN', handler);
+  }
+  const current = { auth: { strategy: { name: 'content-api-token' }, credentials: { id: 9 } } };
+  const tokenCtx = makeCtx({ method: 'POST', body, state: current });
+  await api.send(tokenCtx);
+  assert.equal(tokenCtx.status, 202, 'Strapi 5.61 strategy name content-api-token');
+  ({ api } = await apiSetup({ contentApi: { allowUsersPermissions: true } }));
+  const ctx = makeCtx({ method: 'POST', body, state: endUser });
+  await api.send(ctx);
+  assert.equal(ctx.status, 202);
+});
+
+test('admin API: a paid number lookup needs contacts.manage; the free check does not', async () => {
+  const { admin } = await apiSetup();
+  const readOnly = { userAbility: { can: () => false } };
+  let ctx = makeCtx({ method: 'POST', body: { phone: PHONE }, state: readOnly });
+  await admin.lookup(ctx);
+  assert.equal(ctx.status, 403);
+  assert.equal(ctx.body.error.details.code, 'FORBIDDEN');
+  ctx = makeCtx({ method: 'POST', body: { phone: PHONE, remote: false }, state: readOnly });
+  await admin.lookup(ctx);
+  assert.equal(ctx.status, 200);
+  assert.equal(ctx.body.data.valid, true);
+  const manager = { userAbility: { can: (action) => action === 'plugin::magic-messagegate.contacts.manage' } };
+  ctx = makeCtx({ method: 'POST', body: { phone: PHONE }, state: manager });
+  await admin.lookup(ctx);
+  assert.equal(ctx.status, 200);
 });

@@ -1,50 +1,80 @@
 'use strict';
 
-const serviceFactory = require('./services/whatsapp');
+/**
+ * Magic MessageGate server entry.
+ *
+ * Lifecycle (https://docs.strapi.io/cms/plugins-development/server-api):
+ * - register: mount the raw-body middleware for webhooks (before strapi::body).
+ * - bootstrap: create tables, register RBAC actions, start the worker,
+ *   maintenance and retention timers (all unref'd, all multi-process safe).
+ * - destroy: stop the timers.
+ */
+const config = require('./config');
+const routes = require('./routes');
+const controllers = require('./controllers');
+const services = require('./services');
+const { createRawBodyMiddleware } = require('./utils/raw-body');
+const { registerActions } = require('./permissions');
 
-const permissionActions = [
-  { section: 'plugins', displayName: 'Open WhatsApp overview', uid: 'overview.access', pluginName: 'magic-whatsapp' },
-  { section: 'plugins', displayName: 'Read WhatsApp connection status', uid: 'status.view', pluginName: 'magic-whatsapp' },
-  { section: 'plugins', displayName: 'Manage WhatsApp connection and session', uid: 'connection.manage', pluginName: 'magic-whatsapp' },
-  { section: 'plugins', displayName: 'List WhatsApp templates', uid: 'templates.list', pluginName: 'magic-whatsapp' },
-  { section: 'plugins', displayName: 'Edit WhatsApp templates', uid: 'templates.edit', pluginName: 'magic-whatsapp' },
-  { section: 'plugins', displayName: 'Send WhatsApp messages', uid: 'messages.send', pluginName: 'magic-whatsapp' },
-];
+const timers = new WeakMap();
+
+/**
+ * @param {Function} fn
+ * @param {number} ms
+ * @returns {NodeJS.Timeout}
+ */
+function every(fn, ms) {
+  let running = false;
+  const timer = setInterval(async () => {
+    if (running) return;
+    running = true;
+    try {
+      await fn();
+    } finally {
+      running = false;
+    }
+  }, ms);
+  if (typeof timer.unref === 'function') timer.unref();
+  return timer;
+}
 
 module.exports = {
-  register() {},
+  register({ strapi }) {
+    strapi.server.use(createRawBodyMiddleware({ pathPrefix: '/api/magic-messagegate/webhooks/' }));
+  },
 
   async bootstrap({ strapi }) {
-    const actionProvider = strapi.admin?.services?.permission?.actionProvider;
-    if (typeof actionProvider?.registerMany !== 'function') {
-      throw new Error('Strapi admin permission action provider is not available.');
+    const core = services.coreFor(strapi);
+    await core.init();
+    await registerActions(strapi);
+    const cfg = core.ctx.config;
+    const list = [];
+    const log = (scope) => (error) =>
+      strapi.log.error(`[magic-messagegate] ${scope} failed: ${error?.name || 'Error'}`);
+    if (cfg.worker.enabled) {
+      list.push(every(() => core.outbox.tick().catch(log('worker')), cfg.worker.intervalMs));
+      list.push(every(() => core.outbox.maintain().catch(log('maintenance')), 30_000));
+      list.push(
+        every(async () => {
+          const settings = await core.settings.get();
+          await core.outbox.purge(settings.retention);
+        }, 60 * 60_000)
+      );
     }
-    await actionProvider.registerMany(permissionActions);
+    timers.set(strapi, list);
+    strapi.log.info(`[magic-messagegate] ready (worker ${cfg.worker.enabled ? 'on' : 'off'})`);
   },
 
-  async destroy({ strapi }) {
-    const service = strapi.plugin?.('magic-whatsapp')?.service?.('whatsapp');
-    if (typeof service?.shutdown === 'function') await service.shutdown();
+  destroy({ strapi }) {
+    for (const timer of timers.get(strapi) || []) clearInterval(timer);
+    timers.delete(strapi);
   },
 
-  config: {
-    default: { socketFactory: null },
-    validator(config) {
-      if (!config || typeof config !== 'object' || Array.isArray(config)) {
-        throw new TypeError('Magic WhatsApp configuration must be an object.');
-      }
-      if (config.socketFactory !== null && config.socketFactory !== undefined && typeof config.socketFactory !== 'function') {
-        throw new TypeError('Magic WhatsApp socketFactory must be a function.');
-      }
-      const unsupportedKeys = Object.keys(config).filter((key) => key !== 'socketFactory');
-      if (unsupportedKeys.length > 0) throw new TypeError('Magic WhatsApp configuration contains unsupported options.');
-    },
-  },
-
-  controllers: { whatsapp: require('./controllers/whatsapp') },
-  services: { whatsapp: serviceFactory },
-  routes: {
-    admin: require('./routes/admin'),
-    'content-api': { type: 'content-api', routes: [] },
-  },
+  config,
+  routes,
+  controllers,
+  services,
+  contentTypes: {},
+  policies: {},
+  middlewares: {},
 };

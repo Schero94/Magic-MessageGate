@@ -1,6 +1,7 @@
 node_modules/
 dist/
-.whatsapp-auth/
-.magicmail-whatsapp-auth/
+coverage/
 .env
 *.log
+*.db
+.tmp/
