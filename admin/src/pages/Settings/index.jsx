@@ -506,7 +506,7 @@ export const SettingsPage = () => {
               <Grid.Item col={12} direction="column" alignItems="stretch">
                 <BooleanField
                   name="lookup.blockInactiveNumbers"
-                  label={t('settings.lookup.block', 'Stop sends to numbers that are not assigned')}
+                  label={t('settings.lookup.block', 'Stop sends to unassigned numbers')}
                   hint={t(
                     'settings.lookup.block.hint',
                     'Before sending, the HLR result decides: unassigned numbers fail with NUMBER_INACTIVE and cost nothing. Without a result the message is sent.'
@@ -542,7 +542,7 @@ export const SettingsPage = () => {
               <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
                 <NumberField
                   name="inbound.replyWindowHours"
-                  label={t('settings.inbox.replyWindow', 'Link SMS answers to the last message for')}
+                  label={t('settings.inbox.replyWindow', 'Reply window for SMS')}
                   hint={t(
                     'settings.inbox.replyWindow.hint',
                     'SMS has no reply reference, so an answer within this time belongs to the last message sent.'

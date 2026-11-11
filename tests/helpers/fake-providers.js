@@ -32,6 +32,7 @@ const ROUTES = [
     /^\/twilio\/2010-04-01\/Accounts\/AC[0-9a-f]{32}\/Messages\/MM[0-9a-f]{32}\/Media\/(ME[0-9a-f]{32})$/,
   ],
   ['twilio.cdn', 'GET', /^\/twilio-cdn\/([A-Za-z0-9_-]+)$/],
+  ['hook.receive', 'POST', /^\/hook$/],
   ['meta.send', 'POST', /^\/meta\/v\d+\.\d\/(\d+)\/messages$/],
   ['meta.info', 'GET', /^\/meta\/v\d+\.\d\/(\d+)$/],
   ['meta.templates', 'GET', /^\/meta\/v\d+\.\d\/(\d+)\/message_templates$/],
@@ -67,6 +68,7 @@ const JPEG_WITH_EXIF = Buffer.concat([
 
 /** Default (successful) answers, shaped like the providers' documentation. */
 const DEFAULTS = {
+  'hook.receive': () => ({ status: 204, json: undefined }),
   'meta.media': (req) => ({
     status: 200,
     json: {
@@ -226,6 +228,8 @@ async function startFakeProviders() {
         return;
       }
       const reply = () => {
+        // Binary answers over the JSON control channel arrive as base64.
+        if (answer.base64) answer.body = Buffer.from(answer.base64, 'base64');
         if (answer.body) {
           res.writeHead(answer.status, {
             'content-type': answer.type || 'application/octet-stream',

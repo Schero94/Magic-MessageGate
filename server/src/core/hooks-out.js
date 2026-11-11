@@ -69,6 +69,7 @@ function createHooksOut(ctx, deps) {
    */
   async function urlAllowed(url) {
     if (allowPrivate) return /^https?:\/\//.test(String(url));
+    // checkUrl refuses http, credentials, other ports and private hosts.
     return checkUrl(url).ok && (await resolvesPublic(url));
   }
 

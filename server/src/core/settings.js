@@ -91,7 +91,14 @@ const settingsSchema = z
     outgoingWebhook: z
       .object({
         enabled: z.boolean(),
-        url: z.string().url().max(500).startsWith('https://').nullable(),
+        // https is enforced on save and before every delivery; http only with
+        // the development flag outgoingWebhooks.allowPrivateHosts.
+        url: z
+          .string()
+          .url()
+          .max(500)
+          .regex(/^https?:\/\//)
+          .nullable(),
         events: z.array(z.enum(HOOK_EVENTS)).max(HOOK_EVENTS.length),
       })
       .strict(),

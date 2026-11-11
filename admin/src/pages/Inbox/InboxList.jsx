@@ -5,7 +5,7 @@ import {
   Field,
   Flex,
   Grid,
-  Link,
+  LinkButton,
   SingleSelect,
   SingleSelectOption,
   Table,
@@ -132,14 +132,16 @@ const ContactLink = ({ m }) => {
   if (!m.contactId)
     return <Typography textColor="neutral600">{t('inbox.contact.erased', 'Erased contact')}</Typography>;
   return (
-    <Link
+    <LinkButton
       tag={NavLink}
+      variant="tertiary"
+      size="S"
       to={`${LIST_PATH}/${encodeURIComponent(m.contactId)}`}
       onClick={(event) => event.stopPropagation()}
       aria-label={t('inbox.openConversation', 'Open the conversation with {phone}', { phone })}
     >
       {phone}
-    </Link>
+    </LinkButton>
   );
 };
 

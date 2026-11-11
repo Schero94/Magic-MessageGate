@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Box, Button, Flex, Link, Typography } from '@strapi/design-system';
+import { Box, Button, Flex, LinkButton, Typography } from '@strapi/design-system';
 import { Check, Pin } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import styled from 'styled-components';
@@ -62,9 +62,9 @@ const LocationView = ({ location }) => {
           : t('inbox.location.invalid', 'No valid coordinates')}
       </Typography>
       {href ? (
-        <Link href={href} isExternal>
+        <LinkButton href={href} isExternal variant="tertiary" size="S">
           {t('inbox.location.open', 'Open in OpenStreetMap')}
-        </Link>
+        </LinkButton>
       ) : null}
     </Flex>
   );

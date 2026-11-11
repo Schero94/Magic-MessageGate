@@ -332,6 +332,262 @@ log(
   `STOP via process ${PORTS[0]}, WhatsApp send via ${PORTS[PORTS.length - 1]}: ${afterStop.status} ${afterStop.json?.error?.details?.code}`
 );
 
+// 6) 1.1: RCS in the chain (WhatsApp 131026 -> RCS 63036 -> SMS, callbacks repeated on
+// random processes), attachments with signed SMS links, and dry runs that queue nothing.
+const FAKE_API = `http://127.0.0.1:${env.MG_CLUSTER_FAKE_PORT || 1481}`;
+const hex32 = () => crypto.randomBytes(16).toString('hex');
+const rcsToken = hex32();
+const rcsSid = `AC${hex32()}`;
+const rcs = await mg('POST', '/accounts', {
+  channel: 'rcs',
+  provider: 'twilio',
+  name: 'RCS cluster',
+  isDefault: true,
+  config: { accountSid: rcsSid, authToken: rcsToken, messagingServiceSid: `MG${hex32()}` },
+});
+await mg('POST', '/templates', {
+  key: 'order_shipped',
+  channel: 'rcs',
+  language: 'de',
+  name: 'Bestellung versandt (RCS)',
+  content: { text: 'Bestellung {{order_id}} ist unterwegs, {{first_name}}.' },
+  variables: vars,
+});
+{
+  const current = await mg('GET', '/settings');
+  await mg('PUT', '/settings', {
+    revision: current.revision,
+    settings: {
+      ...current.settings,
+      routing: { ...current.settings.routing, defaultChain: ['whatsapp', 'rcs', 'sms'] },
+    },
+  });
+}
+const rcsPhones = Array.from({ length: 20 }, (_, i) => phone(N + 40 + i));
+await pool(rcsPhones, 10, async (p) => {
+  for (const channel of ['whatsapp', 'rcs', 'sms'])
+    await api('POST', '/consent', { phone: p, channel, status: 'granted' });
+});
+await fetch(`${FAKE}/queue`, {
+  method: 'POST',
+  body: JSON.stringify({
+    route: 'meta.send',
+    answer: { status: 400, json: { error: { code: 131026, message: 'x' } } },
+    times: 20,
+  }),
+});
+const smsBefore = (await (await fetch(`${FAKE}/sends`)).json()).filter((x) => x.route === 'seven.send').length;
+await pool(rcsPhones, 10, (p, i) => send(p, N + 40 + i, `http://127.0.0.1:${PORTS[i % PORTS.length]}`));
+await waitFor(
+  async () => Number(await sql(`select count(*) from mg_messages where channel = 'rcs' and status = 'sent'`)) >= 20,
+  'RCS sent'
+);
+const rcsForms = await (await fetch(`${FAKE}/requests?route=twilio.send`)).json();
+log(
+  `RCS sends: ${rcsForms.length}, all with rcs: prefix and Messaging Service: ${rcsForms.every((f) => f.form.To.startsWith('rcs:') && f.form.MessagingServiceSid)}`
+);
+const rcsUrl = rcs.webhookUrl;
+const twilioSign = (params) =>
+  crypto
+    .createHmac('sha1', rcsToken)
+    .update(
+      Buffer.from(
+        Object.keys(params)
+          .sort()
+          .reduce((acc, k) => acc + k + params[k], rcsUrl),
+        'utf8'
+      )
+    )
+    .digest('base64');
+const twilioPost = (params, port) =>
+  fetch(`http://127.0.0.1:${port}${new URL(rcsUrl).pathname}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-twilio-signature': twilioSign(params) },
+    body: new URLSearchParams(params).toString(),
+  }).then((r) => r.status);
+const callbackStatuses = [];
+await pool(rcsForms, 10, async (f) => {
+  const params = { AccountSid: rcsSid, MessageSid: f.answer.sid, MessageStatus: 'undelivered', ErrorCode: '63036' };
+  callbackStatuses.push(
+    ...(await Promise.all([
+      twilioPost(params, pick(PORTS)),
+      twilioPost(params, pick(PORTS)),
+      twilioPost(params, pick(PORTS)),
+    ]))
+  );
+});
+log(
+  `RCS 63036 callbacks: ${callbackStatuses.length} posts (3 per message, random processes), statuses ${[...new Set(callbackStatuses)].join(',')}`
+);
+await waitFor(async () => {
+  const s = (await (await fetch(`${FAKE}/sends`)).json()).filter((x) => x.route === 'seven.send').length;
+  return s - smsBefore >= 20;
+}, 'SMS after RCS');
+await sleep(3000);
+const smsAfter = (await (await fetch(`${FAKE}/sends`)).json()).filter((x) => x.route === 'seven.send').slice(smsBefore);
+const smsPer = new Map();
+for (const x of smsAfter) smsPer.set(x.to, (smsPer.get(x.to) || 0) + 1);
+log(`fallback WhatsApp -> RCS -> SMS: ${smsPer.size} numbers got SMS, max per number ${Math.max(...smsPer.values())}`);
+log(
+  `contacts marked not RCS capable: ${await sql(`select count(*) from mg_contacts where rcs_capability = 'not_capable'`)}`
+);
+
+const messagesBefore = Number(await sql('select count(*) from mg_messages'));
+const dry = await pool(PORTS, 8, (port) =>
+  api(
+    'POST',
+    '/messages',
+    {
+      to: rcsPhones[0],
+      channel: 'sms',
+      text: 'Rechnung',
+      attachment: { url: 'https://cdn.example.test/invoice.pdf', mimeType: 'application/pdf' },
+      dryRun: true,
+    },
+    `http://127.0.0.1:${port}`
+  )
+);
+log(
+  `dry runs on 8 processes: ${dry.filter((r) => r.status === 200 && r.json?.data?.dryRun && r.json.data.valid).length}x valid, messages created: ${Number(await sql('select count(*) from mg_messages')) - messagesBefore}`
+);
+const attachPhones = rcsPhones.slice(0, 5);
+await pool(attachPhones, 5, (p, i) =>
+  api(
+    'POST',
+    '/messages',
+    {
+      to: p,
+      channel: 'sms',
+      text: 'Ihre Rechnung',
+      attachment: { url: 'https://cdn.example.test/invoice.pdf', mimeType: 'application/pdf' },
+      idempotencyKey: `attach-${i}`,
+    },
+    `http://127.0.0.1:${PORTS[i]}`
+  )
+);
+await sleep(4000);
+const sevenForms = await (await fetch(`${FAKE}/requests?route=seven.send`)).json();
+const links = sevenForms
+  .map((f) => /\/api\/magic-messagegate\/files\/(\S+)/.exec(f.form?.text || '')?.[1])
+  .filter(Boolean);
+const linkChecks = await Promise.all(
+  links.map((t, i) =>
+    fetch(`http://127.0.0.1:${PORTS[(i + 5) % PORTS.length]}/api/magic-messagegate/files/${t}`, {
+      redirect: 'manual',
+    }).then((r) => `${r.status}:${r.headers.get('location') === 'https://cdn.example.test/invoice.pdf'}`)
+  )
+);
+const forged = await fetch(
+  `${BAL}/api/magic-messagegate/files/${links[0]?.replace(/.$/, (c) => (c === '0' ? '1' : '0'))}`,
+  { redirect: 'manual' }
+);
+log(
+  `attachment SMS: ${links.length} signed links; opened on other processes: ${[...new Set(linkChecks)].join(',')}; tampered link: ${forged.status}`
+);
+log(
+  `attachment references stored without content: ${await sql(`select count(*) from mg_attachment_links where ref_sealed like 'g1:%'`)}`
+);
+
+// 7) 1.1: inbound messages posted 3 times each to random processes: one row, one event
+// (counted at the outgoing webhook receiver), one media download each; replies route back.
+{
+  const current = await mg('GET', '/settings');
+  await mg('PUT', '/settings', {
+    revision: current.revision,
+    settings: {
+      ...current.settings,
+      outgoingWebhook: { enabled: true, url: `${FAKE_API}/hook`, events: ['message.received', 'media.ready'] },
+    },
+  });
+}
+const { secret: hookSecret } = await mg('POST', '/settings/webhook-secret');
+const inboundPhones = phones.slice(1, 41);
+const inboundIds = inboundPhones.map(() => `wamid.IN11${crypto.randomBytes(8).toString('hex')}`);
+const contextFor = new Map(metaSends.map((x) => [x.to, x.id]));
+const inboundMessage = (p, i) => {
+  const base = { from: p.replace('+', ''), id: inboundIds[i], timestamp: String(Math.floor(Date.now() / 1000)) };
+  const context = contextFor.get(p.replace('+', ''))
+    ? { context: { from: '4930000000', id: contextFor.get(p.replace('+', '')) } }
+    : {};
+  if (i < 10)
+    return {
+      ...base,
+      type: 'image',
+      image: { id: `9${String(200000 + i)}`, mime_type: 'image/jpeg', caption: 'Foto' },
+      ...context,
+    };
+  if (i < 20)
+    return {
+      ...base,
+      type: 'interactive',
+      interactive: { type: 'button_reply', button_reply: { id: 'confirm_yes', title: 'Ja' } },
+      ...context,
+    };
+  return { ...base, type: 'text', text: { body: `Frage ${i}` }, ...context };
+};
+const posts = [];
+await pool(inboundPhones, 10, async (p, i) => {
+  const change = [
+    {
+      field: 'messages',
+      value: {
+        messaging_product: 'whatsapp',
+        metadata: { phone_number_id: '106540352242922' },
+        messages: [inboundMessage(p, i)],
+      },
+    },
+  ];
+  posts.push(
+    ...(await Promise.all([
+      metaHook(change, pick(PORTS)),
+      metaHook(change, pick(PORTS)),
+      metaHook(change, pick(PORTS)),
+    ]))
+  );
+});
+log(`inbound webhooks: ${inboundPhones.length} messages posted 3 times each to random processes`);
+await waitFor(
+  async () => (await (await fetch(`${FAKE}/requests?route=hook.receive`)).json()).length >= 50,
+  'outgoing webhook deliveries',
+  120_000
+);
+await sleep(8000);
+const inboundRows = Number(await sql(`select count(*) from mg_inbound where provider_key like 'meta:wamid.IN11%'`));
+const hooks = await (await fetch(`${FAKE}/requests?route=hook.receive`)).json();
+const bodies = hooks.map((h) => ({
+  body: JSON.parse(h.raw),
+  sigOk:
+    h.headers['x-messagegate-signature'] ===
+    `v1=${crypto.createHmac('sha256', hookSecret).update(`${h.headers['x-messagegate-timestamp']}.${h.raw}`).digest('hex')}`,
+}));
+const received = bodies.filter((b) => b.body.event === 'message.received');
+const readyHooks = bodies.filter((b) => b.body.event === 'media.ready');
+log(`inbound rows: ${inboundRows} for ${inboundPhones.length} messages`);
+log(
+  `message.received deliveries: ${received.length}, distinct inbound ids: ${new Set(received.map((b) => b.body.data.inboundId)).size}, distinct delivery ids: ${new Set(received.map((b) => b.body.id)).size}`
+);
+log(
+  `media: downloads ${(await (await fetch(`${FAKE}/requests?route=meta.mediaFile`)).json()).length} for 10 images, media.ready deliveries ${readyHooks.length}, stored ${await sql(`select count(*) from mg_inbound where media_status = 'ready'`)}`
+);
+log(
+  `outgoing webhook signatures valid: ${bodies.every((b) => b.sigOk)}; no phone numbers in deliveries: ${!hooks.some((h) => /\+?49155/.test(h.raw))}`
+);
+log(
+  `replies linked to our message: ${await sql(`select count(*) from mg_inbound where provider_key like 'meta:wamid.IN11%' and reply_to_message_id is not null`)}`
+);
+const firstInbound = received[0]?.body.data.inboundId;
+const reply = await api(
+  'POST',
+  `/inbound/${firstInbound}/reply`,
+  { text: 'Danke, wir kümmern uns.' },
+  `http://127.0.0.1:${pick(PORTS)}`
+);
+const processedA = await api('POST', `/inbound/${firstInbound}/processed`, {}, `http://127.0.0.1:${PORTS[0]}`);
+const processedB = await api('POST', `/inbound/${firstInbound}/processed`, {}, `http://127.0.0.1:${PORTS[1]}`);
+log(
+  `reply via Content API: ${reply.status} on ${reply.json?.data?.channel}; markProcessed on two processes: alreadyProcessed ${processedA.json?.data?.alreadyProcessed}/${processedB.json?.data?.alreadyProcessed}`
+);
+
 // 5) Maintenance lease: exactly one holder.
 await sleep(35_000);
 log(`leases: ${await sql(`select claim_key, holder from mg_claims order by claim_key`).replace(/\n/g, ', ')}`);

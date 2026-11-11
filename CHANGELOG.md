@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- **RCS through Twilio**: new channel `rcs` (account with the Messaging Service SID of the RCS sender), plain-text templates and rich cards with title, image and buttons as Twilio Content templates ("Create on Twilio"), delivered/read/undelivered status callbacks, SMS fallback inside MessageGate's chain. Capability is learned from error 63036 (Twilio has no RCS lookup).
+- **Attachments** in `send()`: `attachment: { fileId }` (media library) or `{ url, mimeType }` (public https). WhatsApp media messages and template header media, RCS media, Telegram `sendPhoto`/`sendDocument`; SMS gets a signed, expiring download link. MIME allow-list, magic-byte check, SSRF-safe URL policy, per-channel size caps; only a reference is stored.
+- **Media templates**: IMAGE/DOCUMENT/VIDEO headers upload their sample with Meta's Resumable Upload API (`example.header_handle`) and send the header media at send time (attachment or the template's default file).
+- **Number checks**: seven.io HLR lookup (active/inactive, network, ported) cached in the database and sharing the monthly budget; optional `blockInactiveNumbers` (`NUMBER_INACTIVE`, no provider cost); `lookup.capabilities(phone)` and `POST /capabilities`.
+- **Inbound messages** for WhatsApp, RCS, Telegram and SMS: text, buttons (quick replies, reply buttons, inline keyboards, RCS suggested replies), media, locations; stored sealed, `messagegate.message.received` exactly once across processes, reply context, `inbound.get/list/markProcessed`, `messages.reply`, `conversations.history`, admin Inbox with unread counter, retention and GDPR export/erasure.
+- **Inbound media**: download worker (lease per job, retries until the provider window ends), size cap while streaming, type allow-list, magic bytes, EXIF removal for JPEG/PNG, optional scan hook (`inbound.onMediaScan`), storage in the media library (`inboundMedia.storage`), `inbound.getMedia` (buffer, stream, base64), short-lived signed media URLs, `messagegate.media.ready` / `.failed`.
+- **Outgoing webhook** (optional): selected events to an https URL with an HMAC-SHA256 signature, retries and an SSRF-safe URL policy.
+- **Test APIs**: `send(input, { dryRun: true })` / `messages.preview`, `templates.render`, Content API `POST /templates/render` and `dryRun` on `POST /messages`, sandbox provider mode (`providers.mode: 'sandbox'`) with magic test numbers, `sandbox.simulateInbound`, and the `strapi-plugin-magic-messagegate/testing` export.
+- Reply buttons on free-text messages (`buttons`), WhatsApp quick-reply payloads in templates, Telegram inline buttons in templates.
+
+### Migration
+
+- No action needed for existing data: on start, MessageGate adds the new tables (`mg_inbound`, `mg_number_checks`, `mg_attachment_links`, `mg_webhook_out`) and contact columns. Start one replica first when you deploy, then scale up.
+- Settings saved by 1.0 keep their channel chain (`whatsapp → sms`). Add `rcs` in Settings → Routing to use it; new installs default to `whatsapp → rcs → sms`. New settings get their defaults.
+- Run **Test** once on existing Telegram accounts so the webhook also receives button presses (`callback_query`).
+- New RBAC actions **Inbox: read** and **Inbox: manage**; give them to the roles that should see replies. The new Content API routes for inbound messages are separate token permissions (`inbound-api`).
+- Inbound text and files are personal data: review the inbox retention (90 days) and your privacy notice. E-mail stays opt-in and off by default; MessageGate never sends e-mail itself.
+
 ## [1.0.1](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.0.0...messagegate-v1.0.1) (2026-11-11)
 
 

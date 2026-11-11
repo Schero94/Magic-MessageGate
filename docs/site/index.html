@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Magic MessageGate: WhatsApp, Telegram and SMS for Strapi 5</title>
+    <title>Magic MessageGate: WhatsApp, RCS, Telegram and SMS for Strapi 5</title>
     <meta
       name="description"
-      content="Strapi 5 plugin for WhatsApp (Cloud API), Telegram and SMS: templates with live preview, exactly-once sending, delivery and read tracking, fallback to SMS, consent and GDPR tools."
+      content="Strapi 5 plugin for WhatsApp (Cloud API), RCS (Twilio), Telegram and SMS: templates and attachments, exactly-once sending, delivery and read tracking, inbound replies and files, fallback, consent and GDPR tools."
     />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#4945ff" media="(prefers-color-scheme: light)" />
@@ -16,7 +16,7 @@
     <meta property="og:title" content="Magic MessageGate for Strapi 5" />
     <meta
       property="og:description"
-      content="WhatsApp, Telegram and SMS from Strapi, with templates, delivery tracking and automatic fallback."
+      content="WhatsApp, RCS, Telegram and SMS from Strapi: send, receive, process and automate."
     />
     <meta property="og:url" content="https://schero94.github.io/Magic-MessageGate/" />
     <meta property="og:image" content="https://schero94.github.io/Magic-MessageGate/img/message-timeline.png" />
@@ -34,7 +34,7 @@
         "name": "Magic MessageGate",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Node.js",
-        "description": "Strapi 5 plugin for WhatsApp (Cloud API), Telegram and SMS with templates, delivery tracking and fallback.",
+        "description": "Strapi 5 plugin for WhatsApp (Cloud API), RCS, Telegram and SMS with templates, attachments, inbound messages, delivery tracking and fallback.",
         "license": "https://opensource.org/licenses/MIT",
         "url": "https://schero94.github.io/Magic-MessageGate/",
         "codeRepository": "https://github.com/Schero94/Magic-MessageGate",
@@ -65,11 +65,12 @@
       <section class="hero" id="top" aria-labelledby="page-title">
         <div class="hero-copy">
           <p class="eyebrow">Strapi 5 plugin · MIT</p>
-          <h1 id="page-title">WhatsApp, Telegram and SMS for Strapi.</h1>
+          <h1 id="page-title">WhatsApp, RCS, Telegram and SMS for Strapi.</h1>
           <p class="lead">
-            Send a template with one call. MessageGate picks the channel, sends the message exactly once, tracks it to
-            <em>delivered</em> and <em>read</em>, and falls back to SMS when WhatsApp can't reach the number. It uses
-            the official provider APIs only.
+            Send a template or a file with one call. MessageGate picks the channel, sends the message exactly once,
+            tracks it to <em>delivered</em> and <em>read</em>, and falls back to RCS and SMS when WhatsApp can't reach
+            the number. Replies, button taps and photos come back as events your code can answer. It uses the official
+            provider APIs only.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#install">Get started</a>
@@ -102,10 +103,10 @@
         <h2 id="features-title">What it does</h2>
         <div class="cards">
           <article class="card">
-            <h3>Three channels, one API</h3>
+            <h3>Four channels, one API</h3>
             <p>
-              WhatsApp through Meta's Cloud API, Telegram through the Bot API, SMS through seven.io or Twilio. No vendor
-              SDKs.
+              WhatsApp through Meta's Cloud API, RCS through Twilio, Telegram through the Bot API, SMS through seven.io
+              or Twilio. No vendor SDKs.
             </p>
           </article>
           <article class="card">
@@ -129,8 +130,8 @@
           <article class="card">
             <h3>Fallback chain and routing rules</h3>
             <p>
-              WhatsApp → SMS → e-mail through Magic Mail. Numbers that aren't on WhatsApp are remembered. Set the channel
-              order per template, tag or country.
+              WhatsApp → RCS → SMS. Numbers that aren't on WhatsApp or can't receive RCS are remembered. Set the channel
+              order per template, tag or country. E-mail through Magic Mail is opt-in and off by default.
             </p>
           </article>
           <article class="card">
@@ -140,8 +141,32 @@
             </p>
           </article>
           <article class="card">
-            <h3>Number check</h3>
-            <p>A free format check, plus an optional paid Twilio line-type lookup with a cache and a monthly budget.</p>
+            <h3>Number checks</h3>
+            <p>
+              A free format check, plus optional paid checks with one cache and budget: Twilio line type and seven.io HLR.
+              Sends to unassigned numbers can stop before they cost anything.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Attachments</h3>
+            <p>
+              PDF, images and videos from the media library or a public https URL. SMS gets a short signed link that
+              expires.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Inbox and automation</h3>
+            <p>
+              Replies, buttons, photos, documents, voice notes and locations arrive once as an event. Files are checked
+              and stored in the media library. Answer from code or from the admin.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Built for tests</h3>
+            <p>
+              A dry run shows the route and message without sending. A sandbox with magic test numbers runs app tests
+              without network or cost.
+            </p>
           </article>
           <article class="card">
             <h3>Safe retries</h3>
@@ -176,6 +201,13 @@
                 <td>Free format check, optional paid lookup, learns from the first send</td>
               </tr>
               <tr>
+                <th scope="row">Can it receive RCS?</th>
+                <td>–</td>
+                <td>–</td>
+                <td>Twilio has no RCS check</td>
+                <td>Tries RCS, learns from error 63036, falls back to SMS</td>
+              </tr>
+              <tr>
                 <th scope="row">Is the person online?</th>
                 <td>Not available</td>
                 <td>Not available</td>
@@ -200,6 +232,32 @@
           Built only from the Strapi Design System. Every screen works in light and dark mode and at phone width.
         </p>
         <div class="gallery">
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/inbox-conversation-dark.png" />
+              <img
+                src="./img/inbox-conversation.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Inbox conversation with an inbound photo, a location and the reply box"
+              />
+            </picture>
+            <figcaption>Inbox: replies, files and locations</figcaption>
+          </figure>
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/template-rcs-dark.png" />
+              <img
+                src="./img/template-rcs.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="RCS rich card template with image, title and buttons"
+              />
+            </picture>
+            <figcaption>RCS rich card with buttons</figcaption>
+          </figure>
           <figure>
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="./img/messages-dark.png" />
@@ -339,9 +397,33 @@
   -d '{"data":{"to":"+4915123456789","template":"order_shipped","variables":{"first_name":"Anna","order_id":"A-10423"}}}'</code></pre>
         <p>
           The Content API accepts Strapi API tokens only. It answers <code>202</code> for a new message and
-          <code>200</code> with <code>duplicate: true</code> for a repeated idempotency key. Other routes:
-          <code>GET /messages/:id</code>, <code>POST /consent</code>, <code>POST /telegram-link</code>,
-          <code>POST /lookup</code>.
+          <code>200</code> with <code>duplicate: true</code> for a repeated idempotency key, and the plan without
+          sending for <code>"dryRun": true</code>. Other routes: <code>GET /messages/:id</code>,
+          <code>POST /consent</code>, <code>POST /telegram-link</code>, <code>POST /lookup</code>,
+          <code>POST /capabilities</code>, <code>POST /templates/render</code>, and for inbound messages (a separate
+          permission) <code>GET /inbound</code>, <code>GET /inbound/:id/media</code>,
+          <code>POST /inbound/:id/reply</code>, <code>GET /conversations/:contactId</code>.
+        </p>
+        <h3>Receive and answer</h3>
+        <pre><code>const mg = strapi.plugin('magic-messagegate');
+mg.service('inbound').onReceived(async ({ inboundId, buttonPayload }) =&gt; {
+  const message = await mg.service('inbound').get(inboundId); // text, button, location, media
+  const { items } = await mg.service('conversations').history({ inboundId });
+  await mg.service('messages').reply(inboundId, { text: 'Thanks, we are on it.' });
+  await mg.service('inbound').markProcessed(inboundId);
+});</code></pre>
+        <p>
+          Files: <code>inbound.getMedia(id, { as: 'buffer' | 'stream' | 'base64' })</code> or a short-lived signed URL
+          with <code>inbound.createMediaUrl(id)</code>. Optional: forward events to your own https endpoint, signed with
+          HMAC-SHA256.
+        </p>
+        <h3>Tests without network</h3>
+        <pre><code>// config/env/test/plugins.js
+const { sandboxConfig } = require('strapi-plugin-magic-messagegate/testing');
+module.exports = { 'magic-messagegate': { enabled: true, config: sandboxConfig() } };</code></pre>
+        <p>
+          Magic test numbers decide the outcome (read, not on WhatsApp, no RCS, undelivered, uncertain, unassigned).
+          <code>sandbox.simulateInbound()</code> feeds replies and files into your automations.
         </p>
         <h3>Events</h3>
         <pre><code>strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) =&gt; {
@@ -360,7 +442,8 @@
           <code>config/plugins.js</code> holds the infrastructure options: encryption key, public URL, worker interval
           and concurrency, retry delays, rate limits, provider timeouts and the Meta app for Embedded Signup. Business
           rules live on the <strong>Settings</strong> page: consent, opt-out keywords, channel chain, routing rules,
-          e-mail fallback, lookup budget and retention. The
+          e-mail fallback (off by default), lookups and their budget, inbox and inbound files, the outgoing webhook and
+          retention. The
           <a href="https://github.com/Schero94/Magic-MessageGate#configuration">README</a> lists both with defaults.
         </p>
         <h3>Several instances</h3>
@@ -374,10 +457,18 @@
       <section id="security" class="section" aria-labelledby="security-title">
         <h2 id="security-title">Security and privacy</h2>
         <ul class="checks">
-          <li>Admin routes need a MessageGate permission (14 actions). The Content API needs an API token.</li>
+          <li>
+            Admin routes need a MessageGate permission (16 actions). The Content API needs an API token; reading inbound
+            text and files is a separate permission.
+          </li>
           <li>Provider secrets are encrypted and never returned. Phone numbers are encrypted and found by a keyed hash.</li>
           <li>Webhooks check the provider signature (Meta, Telegram, seven.io, Twilio) and ignore repeats.</li>
           <li>Template variables are plain text, and Telegram HTML is escaped. No URL from user input is fetched.</li>
+          <li>
+            Attachment and webhook URLs must be public https; inbound files come only from the provider's own hosts, with
+            a size cap while streaming, a type allow-list, a content check and EXIF removal.
+          </li>
+          <li>Download links are signed and expire; every invalid link gets the same 404.</li>
           <li>Rate limits and the lookup budget are counted in the database, so they hold across processes.</li>
           <li>Two runtime dependencies: <code>zod</code> and <code>libphonenumber-js</code>.</li>
         </ul>

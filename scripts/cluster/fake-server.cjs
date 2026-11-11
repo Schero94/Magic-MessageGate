@@ -32,6 +32,19 @@ startFakeProviders().then((fake) => {
             }));
           return res.end(JSON.stringify(sends));
         }
+        if (req.url.startsWith('/requests?route=')) {
+          const route = decodeURIComponent(req.url.split('=')[1]);
+          const list = fake.requests
+            .filter((r) => r.route === route)
+            .map((r) => ({
+              form: r.form,
+              json: r.json,
+              raw: route === 'hook.receive' ? r.raw : undefined,
+              headers: route === 'hook.receive' ? r.headers : undefined,
+              answer: r.answer?.json,
+            }));
+          return res.end(JSON.stringify(list));
+        }
         res.statusCode = 404;
         return res.end();
       });
