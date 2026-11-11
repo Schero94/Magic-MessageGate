@@ -25,7 +25,8 @@ export function placeholders(text, format = 'named') {
 }
 
 /**
- * Every placeholder of a template's content (header text, body or text, URL buttons).
+ * Every placeholder of a template's content (header text, body, RCS title,
+ * text, URL buttons), in the server's order (template-engine.js).
  *
  * @param {{channel: string, parameterFormat?: string, content: object}} template - Template.
  * @returns {string[]} Names.
@@ -33,7 +34,7 @@ export function placeholders(text, format = 'named') {
 export function templateVariables(template) {
   const format = template.parameterFormat === 'positional' ? 'positional' : 'named';
   const c = template.content || {};
-  const texts = [c.header?.format === 'TEXT' ? c.header.text : '', c.body, c.text];
+  const texts = [c.header?.format === 'TEXT' ? c.header.text : '', c.body, c.title, c.text];
   for (const button of c.buttons || []) if (button.type === 'URL') texts.push(button.url);
   const names = [];
   for (const text of texts) for (const name of placeholders(text, format)) if (!names.includes(name)) names.push(name);
@@ -79,6 +80,19 @@ export function renderText(text, values, examples, format) {
   return previewParts(text, values, examples, format)
     .map((p) => p.text)
     .join('');
+}
+
+/**
+ * Text Twilio shows on devices without RCS (the `twilio/text` fallback of an
+ * RCS template): title, blank line, text. Mirrors submitToTwilio and render
+ * in the server.
+ *
+ * @param {{title?: string, text?: string}} content - RCS content.
+ * @returns {string} Fallback text (unrendered placeholders kept).
+ */
+export function rcsFallbackText(content) {
+  const c = content || {};
+  return c.title ? `${c.title}\n\n${c.text || ''}` : String(c.text || '');
 }
 
 /**

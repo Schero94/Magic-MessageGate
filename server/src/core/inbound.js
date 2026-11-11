@@ -64,6 +64,7 @@ function createInbound(ctx, deps) {
       buttonPayload: row.button_payload || null,
       receivedAt: Number(row.received_at),
       processedAt: row.processed_at ? Number(row.processed_at) : null,
+      seenAt: row.seen_at ? Number(row.seen_at) : null,
       media:
         row.media_status === 'none'
           ? null

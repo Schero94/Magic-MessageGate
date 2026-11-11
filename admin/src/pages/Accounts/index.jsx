@@ -19,7 +19,7 @@ import { channelLabels, providerLabels } from '../../utils/channels';
 import { reasonText } from '../../utils/reasons';
 import { AccountWizard } from './AccountWizard';
 
-const CHANNEL_ORDER = ['whatsapp', 'telegram', 'sms'];
+const CHANNEL_ORDER = ['whatsapp', 'rcs', 'telegram', 'sms'];
 const HEALTH_VARIANT = { ok: 'success', error: 'danger', unknown: 'neutral' };
 
 /**

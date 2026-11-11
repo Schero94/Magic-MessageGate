@@ -3,22 +3,21 @@ import {
   Box,
   Button,
   Checkbox,
-  Dialog,
   Field,
   Flex,
   Grid,
-  IconButton,
   SingleSelect,
   SingleSelectOption,
   Textarea,
   TextInput,
   Typography,
 } from '@strapi/design-system';
-import { Check, PaperPlane, Plus, Trash } from '@strapi/icons';
-import { BackButton, ConfirmDialog, Layouts, Page, useNotification } from '@strapi/strapi/admin';
+import { Check, Cloud, PaperPlane, Plus } from '@strapi/icons';
+import { BackButton, Layouts, Page, useNotification } from '@strapi/strapi/admin';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { BooleanField } from '../../components/ui/BooleanField';
+import { CopyField } from '../../components/ui/CopyField';
 import { Notice } from '../../components/ui/Notice';
 import { SectionCard } from '../../components/ui/SectionCard';
 import { ErrorState, LoadingState } from '../../components/ui/States';
@@ -34,16 +33,23 @@ import { apiError } from '../../utils/apiError';
 import { CHANNELS, channelLabels } from '../../utils/channels';
 import { keyFromName } from '../../utils/templatePreview.mjs';
 import {
-  BUTTON_TYPES,
   CATEGORIES,
   HEADER_FORMATS,
   LIMITS,
+  MEDIA_HEADER_FORMATS,
   emptyTemplate,
+  rcsNeedsContent,
+  sameRcsCard,
   switchChannel,
   syncVariables,
   templatePayload,
+  textFieldOf,
+  textLimitOf,
   validateTemplate,
 } from '../../utils/templates.mjs';
+import { RcsButtons, TelegramButtons, WhatsAppButtons } from './ButtonFields';
+import { HeaderSampleField } from './HeaderSampleField';
+import { SubmitAction } from './SubmitAction';
 import { TemplatePreview } from './TemplatePreview';
 
 const BASE = `/plugins/${PLUGIN_ID}/templates`;
@@ -58,71 +64,18 @@ const BASE = `/plugins/${PLUGIN_ID}/templates`;
 const count = (value, max) => `${String(value || '').length} / ${max}`;
 
 /**
- * Submit-to-Meta dialog with the account choice.
+ * Default accounts first, then by name.
  *
- * @param {{ accounts: object[], disabled: boolean, onSubmit: (accountId: string) => Promise<void> }} props - Props.
- * @returns {JSX.Element} Trigger and dialog.
+ * @param {object} a - Account.
+ * @param {object} b - Account.
+ * @returns {number} Order.
  */
-const SubmitAction = ({ accounts, disabled, onSubmit }) => {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [accountId, setAccountId] = useState(() => (accounts.find((a) => a.isDefault) || accounts[0])?.id);
-  const run = async () => {
-    setBusy(true);
-    try {
-      await onSubmit(accountId);
-      setOpen(false);
-    } catch {
-      // notified
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Dialog.Root open={open} onOpenChange={(next) => !busy && setOpen(next)}>
-      <Dialog.Trigger>
-        <Button variant="secondary" startIcon={<PaperPlane />} disabled={disabled}>
-          {t('editor.submit', 'Submit to Meta')}
-        </Button>
-      </Dialog.Trigger>
-      <ConfirmDialog
-        title={t('editor.submit.title', 'Submit this template to Meta for review?')}
-        variant="default"
-        endAction={
-          <Button fullWidth onClick={run} loading={busy} disabled={!accountId}>
-            {t('editor.submit.confirm', 'Submit')}
-          </Button>
-        }
-      >
-        <Flex direction="column" alignItems="stretch" gap={4}>
-          <Typography>
-            {t(
-              'editor.submit.body',
-              'Meta usually decides within minutes, sometimes up to 24 hours. The status updates here by webhook or with "Sync templates".'
-            )}
-          </Typography>
-          {accounts.length > 1 ? (
-            <Field.Root name="accountId">
-              <Field.Label>{t('editor.submit.account', 'WhatsApp account')}</Field.Label>
-              <SingleSelect value={accountId} onChange={setAccountId}>
-                {accounts.map((a) => (
-                  <SingleSelectOption key={a.id} value={a.id}>
-                    {a.name}
-                  </SingleSelectOption>
-                ))}
-              </SingleSelect>
-            </Field.Root>
-          ) : null}
-        </Flex>
-      </ConfirmDialog>
-    </Dialog.Root>
-  );
-};
+const byDefault = (a, b) => Number(b.isDefault) - Number(a.isDefault) || String(a.name).localeCompare(String(b.name));
 
 /**
  * Template editor: content per channel with live preview, variables with
- * examples, save with inline validation, and submission to Meta.
+ * examples, save with inline validation, submission to Meta (WhatsApp) and
+ * creation of the Twilio Content template (RCS rich cards).
  *
  * @returns {JSX.Element} Editor page.
  */
@@ -163,7 +116,12 @@ export const TemplateEditorPage = () => {
   }
 
   const variables = useMemo(() => (draft ? syncVariables(draft) : []), [draft]);
-  const metaAccounts = (accounts || []).filter((a) => a.provider === 'meta' && a.isActive);
+  const metaAccounts = (accounts || []).filter((a) => a.provider === 'meta' && a.isActive).sort(byDefault);
+  // RCS and SMS accounts on Twilio share the credentials Content templates need; RCS ones first.
+  const twilioAccounts = (accounts || [])
+    .filter((a) => a.provider === 'twilio' && a.isActive)
+    .sort((a, b) => Number(b.channel === 'rcs') - Number(a.channel === 'rcs') || byDefault(a, b))
+    .map((a) => ({ ...a, name: `${a.name} · ${channels[a.channel] || a.channel}` }));
   const dirty =
     draft && saved && JSON.stringify(templatePayload(draft, true)) !== JSON.stringify(templatePayload(saved, true));
   const readOnly = !rbac.templates.manage;
@@ -174,6 +132,10 @@ export const TemplateEditorPage = () => {
     tooLong: t('editor.error.tooLong', 'This text is too long.'),
     https: t('editor.error.https', 'Use a full https:// address.'),
     example: t('editor.error.example', 'Meta needs an example for every variable.'),
+    phone: t('editor.error.phone', 'Use the international format with + and country code.'),
+    payload: t('editor.error.payload', 'Use 1 to 64 letters, digits or the characters _ . : -'),
+    sampleFile: t('editor.error.sampleFile', 'Meta needs a sample file for media headers.'),
+    fileType: t('editor.error.fileType', 'This file does not match the header type.'),
   };
 
   const update = (patch) => {
@@ -201,6 +163,12 @@ export const TemplateEditorPage = () => {
     updateContent(
       { buttons: draft.content.buttons.map((b, i) => (i === index ? { ...b, ...patch } : b)) },
       Object.keys(patch).map((k) => `content.buttons.${index}.${k}`)
+    );
+  // Removing or adding shifts indexes, so per-button errors are cleared.
+  const setButtons = (buttons) =>
+    updateContent(
+      { buttons },
+      Object.keys(errors).filter((k) => k.startsWith('content.buttons.'))
     );
 
   const showErrors = (found) => {
@@ -236,17 +204,26 @@ export const TemplateEditorPage = () => {
   };
 
   const submit = async (accountId) => {
-    const found = validateTemplate(draft, { forSubmit: true });
+    const found = validateTemplate(draft, { forSubmit: draft.channel === 'whatsapp' });
     if (Object.keys(found).length) {
       showErrors(found);
       throw new Error('invalid');
     }
-    const result = await act(
-      () => api.post(`/templates/${id}/submit`, { accountId }),
-      t('editor.submitted', 'Submitted. Meta reviews the template now.')
-    );
-    setSaved(result);
-    setDraft(result);
+    try {
+      const result = await act(
+        () => api.post(`/templates/${id}/submit`, { accountId }),
+        draft.channel === 'rcs'
+          ? t('editor.createTwilio.done', 'Created on Twilio. The template can be sent now.')
+          : t('editor.submitted', 'Submitted. Meta reviews the template now.')
+      );
+      setSaved(result);
+      setDraft(result);
+    } catch (err) {
+      const { code, details } = apiError(err);
+      if (typeof details.field === 'string' && details.field.startsWith('content.'))
+        setErrors({ [details.field]: code === 'ATTACHMENT_TYPE_MISMATCH' ? messages.fileType : messages.invalid });
+      throw err;
+    }
   };
 
   const insertVariable = () => {
@@ -260,7 +237,7 @@ export const TemplateEditorPage = () => {
     }
     const token = `{{${name}}}`;
     const el = bodyRef.current;
-    const field = draft.channel === 'whatsapp' ? 'body' : 'text';
+    const field = textFieldOf(draft.channel);
     const text = draft.content[field] || '';
     const at = el && typeof el.selectionStart === 'number' ? el.selectionStart : text.length;
     updateContent({ [field]: `${text.slice(0, at)}${token}${text.slice(at)}` }, [`content.${field}`]);
@@ -284,11 +261,62 @@ export const TemplateEditorPage = () => {
 
   const c = draft.content || {};
   const isWa = draft.channel === 'whatsapp';
+  const isRcs = draft.channel === 'rcs';
+  const isTg = draft.channel === 'telegram';
   const header = c.header?.format || 'NONE';
-  const textField = isWa ? 'body' : 'text';
-  const textMax = isWa ? LIMITS.body : draft.channel === 'telegram' ? LIMITS.telegram : LIMITS.sms;
+  const textField = textFieldOf(draft.channel);
+  const textMax = textLimitOf(draft.channel);
   const title = isNew ? t('editor.newTitle', 'New template') : saved?.name || draft.name;
   const approved = !isNew && saved?.approvalStatus;
+  const rcsDraft = !isNew && isRcs && saved?.approvalStatus === 'DRAFT' && rcsNeedsContent(saved);
+  const rcsCardChanged = isRcs && !isNew && !sameRcsCard(draft.content, saved?.content);
+  const buttonProps = {
+    buttons: c.buttons || [],
+    errors,
+    readOnly,
+    onUpdate: updateButton,
+    onSet: setButtons,
+  };
+
+  let secondaryAction = null;
+  if (!isNew && isWa && rbac.templates.submit && metaAccounts.length)
+    secondaryAction = (
+      <SubmitAction
+        accounts={metaAccounts}
+        disabled={Boolean(dirty)}
+        icon={<PaperPlane />}
+        labels={{
+          trigger: t('editor.submit', 'Submit to Meta'),
+          title: t('editor.submit.title', 'Submit this template to Meta for review?'),
+          body: t(
+            'editor.submit.body',
+            'Meta usually decides within minutes, sometimes up to 24 hours. The status updates here by webhook or with "Sync templates".'
+          ),
+          confirm: t('editor.submit.confirm', 'Submit'),
+          account: t('editor.submit.account', 'WhatsApp account'),
+        }}
+        onSubmit={submit}
+      />
+    );
+  else if (rcsDraft && rbac.templates.submit && twilioAccounts.length)
+    secondaryAction = (
+      <SubmitAction
+        accounts={twilioAccounts}
+        disabled={Boolean(dirty)}
+        icon={<Cloud />}
+        labels={{
+          trigger: t('editor.createTwilio', 'Create on Twilio'),
+          title: t('editor.createTwilio.title', 'Create this card as a Twilio Content template?'),
+          body: t(
+            'editor.createTwilio.body',
+            'Twilio stores the rich card and a text version for phones without RCS. The template can be sent right after.'
+          ),
+          confirm: t('editor.createTwilio.confirm', 'Create'),
+          account: t('editor.createTwilio.account', 'Twilio account'),
+        }}
+        onSubmit={submit}
+      />
+    );
 
   return (
     <>
@@ -308,11 +336,7 @@ export const TemplateEditorPage = () => {
             </Button>
           )
         }
-        secondaryAction={
-          !isNew && isWa && rbac.templates.submit && metaAccounts.length ? (
-            <SubmitAction accounts={metaAccounts} disabled={Boolean(dirty)} onSubmit={submit} />
-          ) : null
-        }
+        secondaryAction={secondaryAction}
       />
       <Layouts.Content>
         <Flex direction="column" alignItems="stretch" gap={6}>
@@ -331,6 +355,26 @@ export const TemplateEditorPage = () => {
               {isWa && saved.approvalStatus === 'APPROVED' && dirty ? (
                 <Typography variant="pi" textColor="warning700">
                   {t('editor.status.changed', 'Saving changes resets it to draft; submit it again afterwards.')}
+                </Typography>
+              ) : null}
+              {rcsDraft ? (
+                <Typography variant="pi" textColor="neutral600">
+                  {dirty
+                    ? t('editor.status.rcsSaveFirst', 'Save, then create it on Twilio.')
+                    : twilioAccounts.length
+                      ? t(
+                          'editor.status.rcsDraft',
+                          'Rich cards with a title or buttons need a Twilio Content template before they can be sent.'
+                        )
+                      : t('editor.status.rcsNoAccount', 'Connect an RCS account (Twilio) to create it on Twilio.')}
+                </Typography>
+              ) : null}
+              {isRcs && saved.approvalStatus === 'APPROVED' && rcsCardChanged && rcsNeedsContent(draft) ? (
+                <Typography variant="pi" textColor="warning700">
+                  {t(
+                    'editor.status.rcsChanged',
+                    'Saving a changed card resets it to draft; create it on Twilio again afterwards.'
+                  )}
                 </Typography>
               ) : null}
             </Flex>
@@ -505,9 +549,12 @@ export const TemplateEditorPage = () => {
                             value={header}
                             disabled={readOnly}
                             onChange={(value) =>
-                              updateContent({
-                                header: value === 'NONE' ? undefined : { format: value, text: c.header?.text },
-                              })
+                              updateContent(
+                                {
+                                  header: value === 'NONE' ? undefined : { format: value, text: c.header?.text },
+                                },
+                                ['content.header.text', 'content.header.fileId']
+                              )
                             }
                           >
                             {HEADER_FORMATS.map((f) => (
@@ -551,33 +598,78 @@ export const TemplateEditorPage = () => {
                           </Field.Root>
                         </Grid.Item>
                       ) : null}
-                      {['IMAGE', 'DOCUMENT', 'VIDEO'].includes(header) ? (
+                      {MEDIA_HEADER_FORMATS.includes(header) ? (
+                        <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                          <HeaderSampleField
+                            format={header}
+                            value={c.header?.fileId}
+                            error={errors['content.header.fileId']}
+                            disabled={readOnly}
+                            onChange={(fileId) => {
+                              const next = { ...c.header };
+                              if (fileId == null) delete next.fileId;
+                              else next.fileId = fileId;
+                              updateContent({ header: next }, ['content.header.fileId']);
+                            }}
+                          />
+                        </Grid.Item>
+                      ) : null}
+                    </Grid.Root>
+                  ) : null}
+
+                  {isRcs ? (
+                    <>
+                      <Typography variant="pi" textColor="neutral600">
+                        {t(
+                          'editor.rcs.hint',
+                          'Plain text, optionally with an image, is ready on save. A title or buttons make it a rich card that is created on Twilio first.'
+                        )}
+                      </Typography>
+                      <Grid.Root gap={4}>
                         <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
                           <Field.Root
-                            name="content.header.mediaId"
-                            error={errors['content.header.mediaId']}
-                            hint={t(
-                              'editor.header.media.hint',
-                              'Optional sample media ID from Meta. Real media is sent per message.'
-                            )}
+                            name="content.title"
+                            error={errors['content.title']}
+                            hint={count(c.title, LIMITS.rcsTitle)}
                           >
-                            <Field.Label>{t('editor.header.media', 'Sample media ID')}</Field.Label>
+                            <Field.Label>{t('editor.rcs.title', 'Title (optional)')}</Field.Label>
                             <TextInput
-                              name="content.header.mediaId"
-                              value={c.header?.mediaId || ''}
+                              name="content.title"
+                              value={c.title || ''}
+                              maxLength={LIMITS.rcsTitle}
                               disabled={readOnly}
-                              onChange={(e) =>
-                                updateContent({ header: { ...c.header, mediaId: e.target.value } }, [
-                                  'content.header.mediaId',
-                                ])
-                              }
+                              onChange={(e) => updateContent({ title: e.target.value }, ['content.title'])}
                             />
                             <Field.Hint />
                             <Field.Error />
                           </Field.Root>
                         </Grid.Item>
-                      ) : null}
-                    </Grid.Root>
+                        <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                          <Field.Root
+                            name="content.mediaUrl"
+                            error={errors['content.mediaUrl']}
+                            hint={t(
+                              'editor.rcs.mediaUrl.hint',
+                              'A public https:// address, shown at the top of the card.'
+                            )}
+                          >
+                            <Field.Label>{t('editor.rcs.mediaUrl', 'Image address (optional)')}</Field.Label>
+                            <TextInput
+                              name="content.mediaUrl"
+                              type="url"
+                              value={c.mediaUrl || ''}
+                              maxLength={2000}
+                              placeholder="https://shop.example/images/card.jpg"
+                              spellCheck={false}
+                              disabled={readOnly}
+                              onChange={(e) => updateContent({ mediaUrl: e.target.value }, ['content.mediaUrl'])}
+                            />
+                            <Field.Hint />
+                            <Field.Error />
+                          </Field.Root>
+                        </Grid.Item>
+                      </Grid.Root>
+                    </>
                   ) : null}
 
                   <Field.Root
@@ -624,134 +716,18 @@ export const TemplateEditorPage = () => {
                         <Field.Hint />
                         <Field.Error />
                       </Field.Root>
-
-                      <Flex direction="column" alignItems="stretch" gap={3}>
-                        <Typography variant="sigma" textColor="neutral600" tag="h3">
-                          {t('editor.buttons', 'Buttons')}
-                        </Typography>
-                        {(c.buttons || []).map((b, i) => (
-                          <Box key={i} background="neutral100" hasRadius padding={4}>
-                            <Grid.Root gap={3}>
-                              <Grid.Item col={4} xs={12} direction="column" alignItems="stretch">
-                                <Field.Root name={`content.buttons.${i}.type`}>
-                                  <Field.Label>{t('editor.button.type', 'Type')}</Field.Label>
-                                  <SingleSelect
-                                    value={b.type}
-                                    disabled={readOnly}
-                                    onChange={(value) => updateButton(i, { type: value })}
-                                  >
-                                    {BUTTON_TYPES.map((type) => (
-                                      <SingleSelectOption key={type} value={type}>
-                                        {
-                                          {
-                                            QUICK_REPLY: t('editor.button.QUICK_REPLY', 'Quick reply'),
-                                            URL: t('editor.button.URL', 'Link'),
-                                            COPY_CODE: t('editor.button.COPY_CODE', 'Copy code'),
-                                          }[type]
-                                        }
-                                      </SingleSelectOption>
-                                    ))}
-                                  </SingleSelect>
-                                </Field.Root>
-                              </Grid.Item>
-                              <Grid.Item col={7} xs={10} direction="column" alignItems="stretch">
-                                <Field.Root
-                                  name={`content.buttons.${i}.text`}
-                                  required
-                                  error={errors[`content.buttons.${i}.text`]}
-                                >
-                                  <Field.Label>{t('editor.button.text', 'Label')}</Field.Label>
-                                  <TextInput
-                                    name={`content.buttons.${i}.text`}
-                                    value={b.text || ''}
-                                    maxLength={LIMITS.button}
-                                    disabled={readOnly}
-                                    onChange={(e) => updateButton(i, { text: e.target.value })}
-                                  />
-                                  <Field.Error />
-                                </Field.Root>
-                              </Grid.Item>
-                              <Grid.Item
-                                col={1}
-                                xs={2}
-                                direction="column"
-                                alignItems="flex-end"
-                                justifyContent="flex-end"
-                              >
-                                {!readOnly ? (
-                                  <Box paddingTop={6}>
-                                    <IconButton
-                                      label={t('editor.button.remove', 'Remove button {n}', { n: i + 1 })}
-                                      variant="ghost"
-                                      onClick={() => updateContent({ buttons: c.buttons.filter((_, j) => j !== i) })}
-                                    >
-                                      <Trash />
-                                    </IconButton>
-                                  </Box>
-                                ) : null}
-                              </Grid.Item>
-                              {b.type === 'URL' ? (
-                                <Grid.Item col={12} direction="column" alignItems="stretch">
-                                  <Field.Root
-                                    name={`content.buttons.${i}.url`}
-                                    required
-                                    error={errors[`content.buttons.${i}.url`]}
-                                    hint={t('editor.button.url.hint', 'May end with one variable, e.g. {example}.', {
-                                      example: 'https://shop.example/orders/{{order_id}}',
-                                    })}
-                                  >
-                                    <Field.Label>{t('editor.button.url', 'Address')}</Field.Label>
-                                    <TextInput
-                                      name={`content.buttons.${i}.url`}
-                                      type="url"
-                                      value={b.url || ''}
-                                      disabled={readOnly}
-                                      onChange={(e) => updateButton(i, { url: e.target.value })}
-                                    />
-                                    <Field.Hint />
-                                    <Field.Error />
-                                  </Field.Root>
-                                </Grid.Item>
-                              ) : null}
-                              {b.type === 'COPY_CODE' ? (
-                                <Grid.Item col={12} direction="column" alignItems="stretch">
-                                  <Field.Root
-                                    name={`content.buttons.${i}.variable`}
-                                    hint={t(
-                                      'editor.button.variable.hint',
-                                      'Variable that holds the code, e.g. coupon_code.'
-                                    )}
-                                  >
-                                    <Field.Label>{t('editor.button.variable', 'Code variable')}</Field.Label>
-                                    <TextInput
-                                      name={`content.buttons.${i}.variable`}
-                                      value={b.variable || ''}
-                                      maxLength={60}
-                                      disabled={readOnly}
-                                      onChange={(e) => updateButton(i, { variable: e.target.value })}
-                                    />
-                                    <Field.Hint />
-                                  </Field.Root>
-                                </Grid.Item>
-                              ) : null}
-                            </Grid.Root>
-                          </Box>
-                        ))}
-                        {!readOnly && (c.buttons || []).length < LIMITS.buttons ? (
-                          <Box>
-                            <Button
-                              variant="secondary"
-                              startIcon={<Plus />}
-                              onClick={() =>
-                                updateContent({ buttons: [...(c.buttons || []), { type: 'QUICK_REPLY', text: '' }] })
-                              }
-                            >
-                              {t('editor.button.add', 'Add button')}
-                            </Button>
-                          </Box>
-                        ) : null}
-                      </Flex>
+                      <WhatsAppButtons {...buttonProps} />
                     </>
+                  ) : null}
+                  {isRcs ? <RcsButtons {...buttonProps} /> : null}
+                  {isTg ? <TelegramButtons {...buttonProps} /> : null}
+                  {isRcs && saved?.content?.contentSid && !rcsCardChanged ? (
+                    <CopyField
+                      name="content.contentSid"
+                      label={t('editor.rcs.contentSid', 'Twilio Content SID')}
+                      value={saved.content.contentSid}
+                      hint={t('editor.rcs.contentSid.hint', 'Set by "Create on Twilio". Changing the card removes it.')}
+                    />
                   ) : null}
                 </SectionCard>
 

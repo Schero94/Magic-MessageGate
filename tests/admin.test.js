@@ -234,8 +234,30 @@ test('utils: provider credentials, send form, settings, messages, contacts, form
     fallback: { emailEnabled: false, emailTemplateReferenceId: null },
     lookup: { enabled: false, accountId: null, cacheDays: 30, monthlyBudget: 500 },
     retention: { messageDays: 90, receiptDays: 7 },
+    attachments: { linkTtlHours: 72 },
+    inbound: { retentionDays: 90, replyWindowHours: 72 },
+    inboundMedia: { storage: 'media-library', maxMb: 25, allowedTypes: [] },
+    outgoingWebhook: { enabled: false, url: null, events: [] },
   };
   assert.deepEqual(s.validateSettings(valid), {});
+  assert.equal(
+    s.validateSettings({ ...valid, outgoingWebhook: { enabled: true, url: null, events: [] } })['outgoingWebhook.url'],
+    'required'
+  );
+  assert.equal(
+    s.validateSettings({ ...valid, outgoingWebhook: { enabled: true, url: 'http://x.example', events: [] } })[
+      'outgoingWebhook.url'
+    ],
+    'https'
+  );
+  assert.equal(
+    s.validateSettings({ ...valid, lookup: { ...valid.lookup, hlrEnabled: true } })['lookup.hlrAccountId'],
+    'required'
+  );
+  assert.equal(
+    s.validateSettings({ ...valid, inboundMedia: { ...valid.inboundMedia, maxMb: 101 } })['inboundMedia.maxMb'],
+    'range'
+  );
   assert.equal(
     s.validateSettings({ ...valid, retention: { messageDays: 0, receiptDays: 91 } })['retention.receiptDays'],
     'range'

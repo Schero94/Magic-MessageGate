@@ -16,6 +16,7 @@ import { useMgRBAC } from '../../hooks/useMgRBAC';
 import { useT } from '../../hooks/useT';
 import { PLUGIN_ID } from '../../pluginId';
 import { CHANNELS, channelLabels } from '../../utils/channels';
+import { NumberCheck, RcsBadge } from './NumberCheck';
 import { exportFileName } from '../../utils/contacts.mjs';
 
 /**
@@ -143,11 +144,8 @@ export const ContactDetailModal = ({ id, onClose, onChanged }) => {
             <Flex direction="column" alignItems="stretch" gap={6}>
               <Flex gap={2} wrap="wrap" alignItems="center">
                 <ReachabilityBadge value={c.whatsapp?.reachability} />
-                {c.lineType ? (
-                  <Typography variant="pi" textColor="neutral600">
-                    {t('contact.lineType', 'Line type: {type}', { type: c.lineType })}
-                  </Typography>
-                ) : null}
+                <RcsBadge value={c.rcs?.capability} />
+                <NumberCheck contact={c} />
                 {c.country ? (
                   <Typography variant="pi" textColor="neutral600">
                     {c.country}

@@ -2,10 +2,15 @@
  * Channel, provider and status vocabulary shared by every view.
  */
 
-export const CHANNELS = ['whatsapp', 'telegram', 'sms'];
-export const CHAIN_CHANNELS = ['whatsapp', 'telegram', 'sms', 'email'];
+export const CHANNELS = ['whatsapp', 'rcs', 'telegram', 'sms'];
+export const CHAIN_CHANNELS = ['whatsapp', 'rcs', 'telegram', 'sms', 'email'];
 
-export const PROVIDERS_BY_CHANNEL = { whatsapp: ['meta'], telegram: ['telegram'], sms: ['seven', 'twilio'] };
+export const PROVIDERS_BY_CHANNEL = {
+  whatsapp: ['meta'],
+  rcs: ['twilio'],
+  telegram: ['telegram'],
+  sms: ['seven', 'twilio'],
+};
 
 export const MESSAGE_STATUSES = ['queued', 'sent', 'delivered', 'read', 'failed', 'uncertain', 'expired', 'discarded'];
 
@@ -42,6 +47,7 @@ export const APPROVAL_VARIANT = {
  */
 export const channelLabels = (t) => ({
   whatsapp: t('channel.whatsapp', 'WhatsApp'),
+  rcs: t('channel.rcs', 'RCS'),
   telegram: t('channel.telegram', 'Telegram'),
   sms: t('channel.sms', 'SMS'),
   email: t('channel.email', 'Email (Magic Mail)'),

@@ -55,6 +55,28 @@ export function errorMessage(t, error) {
       );
     case 'NO_ACCOUNT':
       return t('error.NO_ACCOUNT', 'No active account can send on this channel.');
+    case 'NUMBER_INACTIVE':
+      return t('error.NUMBER_INACTIVE', 'The number is not assigned to a subscriber (number check).');
+    case 'RCS_NOT_CAPABLE':
+      return t('error.RCS_NOT_CAPABLE', 'The number cannot receive RCS messages.');
+    case 'ATTACHMENT_NOT_FOUND':
+      return t('error.ATTACHMENT_NOT_FOUND', 'The attachment file does not exist.');
+    case 'ATTACHMENT_TYPE_NOT_ALLOWED':
+      return t('error.ATTACHMENT_TYPE_NOT_ALLOWED', 'This file type cannot be sent (JPEG, PNG, PDF or MP4).');
+    case 'ATTACHMENT_TYPE_MISMATCH':
+      return t('error.ATTACHMENT_TYPE_MISMATCH', 'The file content does not match its type or name.');
+    case 'ATTACHMENT_URL_INVALID':
+      return t('error.ATTACHMENT_URL_INVALID', 'The file needs a public https address.');
+    case 'ATTACHMENT_TOO_LARGE':
+      return t('error.ATTACHMENT_TOO_LARGE', 'The file is larger than the channel allows.');
+    case 'ATTACHMENT_UNSUPPORTED':
+      return t('error.ATTACHMENT_UNSUPPORTED', 'No channel in the chain can carry this attachment.');
+    case 'MEDIA_NOT_READY':
+      return t('error.MEDIA_NOT_READY', 'The file is not available yet (download pending, quarantined or failed).');
+    case 'MEDIA_NOT_STORED':
+      return t('error.MEDIA_NOT_STORED', 'Inbound files are not stored (setting: storage none).');
+    case 'WEBHOOK_URL_INVALID':
+      return t('error.WEBHOOK_URL_INVALID', 'The webhook URL must be a public https address.');
     case 'NO_ROUTE':
       return t('error.NO_ROUTE', 'No channel in the routing chain can reach this contact.');
     case 'NOT_LINKED':

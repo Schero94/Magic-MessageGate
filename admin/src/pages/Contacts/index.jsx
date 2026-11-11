@@ -30,6 +30,7 @@ import { CHANNELS, channelLabels } from '../../utils/channels';
 import { lastActivityAt } from '../../utils/contacts.mjs';
 import { ContactDetailModal } from './ContactDetailModal';
 import { LookupModal } from './LookupModal';
+import { NumberCheck, RcsBadge } from './NumberCheck';
 
 /**
  * Contacts: who can be reached on which channel, consent and last activity.
@@ -125,7 +126,7 @@ export const ContactsPage = () => {
         />
       ) : (
         <Flex direction="column" alignItems="stretch" gap={4}>
-          <Table colCount={5} rowCount={results.length + 1}>
+          <Table colCount={6} rowCount={results.length + 1}>
             <Thead>
               <Tr>
                 <Th>
@@ -133,6 +134,9 @@ export const ContactsPage = () => {
                 </Th>
                 <Th>
                   <Typography variant="sigma">{t('contacts.col.reach', 'Reachability')}</Typography>
+                </Th>
+                <Th>
+                  <Typography variant="sigma">{t('contacts.col.number', 'Number check')}</Typography>
                 </Th>
                 <Th>
                   <Typography variant="sigma">{t('contacts.col.consent', 'Consent')}</Typography>
@@ -166,8 +170,12 @@ export const ContactsPage = () => {
                     <Td>
                       <Flex gap={2} wrap="wrap">
                         <ReachabilityBadge value={c.whatsapp?.reachability} />
+                        <RcsBadge value={c.rcs?.capability} />
                         {c.telegramLinked ? <ToneBadge tone="secondary">{channels.telegram}</ToneBadge> : null}
                       </Flex>
+                    </Td>
+                    <Td>
+                      <NumberCheck contact={c} />
                     </Td>
                     <Td>
                       <Typography textColor={granted.length ? 'neutral800' : 'neutral600'}>

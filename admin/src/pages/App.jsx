@@ -1,5 +1,5 @@
-import { Box, Flex, Tabs } from '@strapi/design-system';
-import { ChartPie, Cog, Feather, Message, Phone, User } from '@strapi/icons';
+import { Badge, Box, Flex, Tabs } from '@strapi/design-system';
+import { ChartPie, Cog, Feather, Message, Phone, User, Mail } from '@strapi/icons';
 import { Page } from '@strapi/strapi/admin';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
@@ -11,6 +11,8 @@ import { PLUGIN_ID } from '../pluginId';
 import { AccountsPage } from './Accounts';
 import { AnalyticsPage } from './Analytics';
 import { ContactsPage } from './Contacts';
+import { InboxPage } from './Inbox';
+import { useInboxUnread } from './Inbox/useInboxUnread';
 import { MessagesPage } from './Messages';
 import { SettingsPage } from './Settings';
 import { TemplatesPage } from './Templates';
@@ -21,6 +23,7 @@ const BASE = `/plugins/${PLUGIN_ID}`;
 /** Section order: daily work first (messages), setup last (accounts, settings). */
 export const SECTIONS = [
   { value: 'messages', path: '', Icon: Message, group: 'messages' },
+  { value: 'inbox', path: 'inbox', Icon: Mail, group: 'inbound' },
   { value: 'templates', path: 'templates', Icon: Feather, group: 'templates' },
   { value: 'contacts', path: 'contacts', Icon: User, group: 'contacts' },
   { value: 'accounts', path: 'accounts', Icon: Phone, group: 'accounts' },
@@ -50,10 +53,12 @@ const App = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const rbac = useMgRBAC();
+  const unread = useInboxUnread(rbac.inbound.read);
   const isEditor = /\/templates\/(new|[a-z0-9]{6,32})\/?$/.test(location.pathname);
 
   const labels = {
     messages: t('nav.messages', 'Messages'),
+    inbox: t('nav.inbox', 'Inbox'),
     templates: t('nav.templates', 'Templates'),
     contacts: t('nav.contacts', 'Contacts'),
     accounts: t('nav.accounts', 'Accounts'),
@@ -87,14 +92,30 @@ const App = () => {
                   previousLabel={t('nav.previous', 'Show previous sections')}
                   nextLabel={t('nav.next', 'Show more sections')}
                 >
-                  {visible.map(({ value, Icon }) => (
-                    <Tabs.Trigger key={value} value={value}>
-                      <Flex gap={2} alignItems="center">
-                        <Icon aria-hidden focusable={false} />
-                        {labels[value]}
-                      </Flex>
-                    </Tabs.Trigger>
-                  ))}
+                  {visible.map(({ value, Icon }) => {
+                    const count = value === 'inbox' && unread ? unread : 0;
+                    return (
+                      <Tabs.Trigger
+                        key={value}
+                        value={value}
+                        aria-label={
+                          count
+                            ? t('nav.inboxUnread', '{label}, {count} unread', { label: labels[value], count })
+                            : undefined
+                        }
+                      >
+                        <Flex gap={2} alignItems="center">
+                          <Icon aria-hidden focusable={false} />
+                          {labels[value]}
+                          {count ? (
+                            <Badge size="S" backgroundColor="primary100" textColor="primary700" aria-hidden>
+                              {count > 99 ? '99+' : count}
+                            </Badge>
+                          ) : null}
+                        </Flex>
+                      </Tabs.Trigger>
+                    );
+                  })}
                 </SectionTabsList>
               </Tabs.Root>
             </Box>
@@ -103,6 +124,8 @@ const App = () => {
                 index
                 element={rbac.messages.read ? <MessagesPage /> : <Navigate to={`${BASE}/${visible[0].path}`} replace />}
               />
+              <Route path="inbox" element={rbac.inbound.read ? <InboxPage /> : <Page.NoPermissions />} />
+              <Route path="inbox/:contactId" element={rbac.inbound.read ? <InboxPage /> : <Page.NoPermissions />} />
               <Route path="templates" element={rbac.templates.read ? <TemplatesPage /> : <Page.NoPermissions />} />
               <Route path="contacts" element={rbac.contacts.read ? <ContactsPage /> : <Page.NoPermissions />} />
               <Route path="accounts" element={rbac.accounts.read ? <AccountsPage /> : <Page.NoPermissions />} />

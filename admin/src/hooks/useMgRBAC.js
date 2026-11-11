@@ -11,6 +11,7 @@ const GROUPS = {
   templates: [...permissions.templatesRead, ...permissions.templatesManage, ...permissions.templatesSubmit],
   messages: [...permissions.messagesRead, ...permissions.messagesSend, ...permissions.messagesManage],
   contacts: [...permissions.contactsRead, ...permissions.contactsManage, ...permissions.contactsExport],
+  inbound: [...permissions.inboundRead, ...permissions.inboundManage],
   analytics: [...permissions.analyticsRead],
   settings: [...permissions.settingsRead, ...permissions.settingsUpdate],
 };
@@ -26,6 +27,7 @@ const GROUPS = {
  *   templates: {read: boolean, manage: boolean, submit: boolean},
  *   messages: {read: boolean, send: boolean, manage: boolean},
  *   contacts: {read: boolean, manage: boolean, export: boolean},
+ *   inbound: {read: boolean, manage: boolean},
  *   analytics: {read: boolean},
  *   settings: {read: boolean, update: boolean},
  * }} Capabilities.
@@ -35,9 +37,10 @@ export function useMgRBAC() {
   const templates = useRBAC(GROUPS.templates);
   const messages = useRBAC(GROUPS.messages);
   const contacts = useRBAC(GROUPS.contacts);
+  const inbound = useRBAC(GROUPS.inbound);
   const analytics = useRBAC(GROUPS.analytics);
   const settings = useRBAC(GROUPS.settings);
-  const all = [accounts, templates, messages, contacts, analytics, settings];
+  const all = [accounts, templates, messages, contacts, inbound, analytics, settings];
   const ok = (r, key) => !r?.isLoading && !r?.error && r?.allowedActions?.[key] === true;
   return {
     isLoading: all.some((r) => r?.isLoading),
@@ -53,6 +56,7 @@ export function useMgRBAC() {
       manage: ok(contacts, 'canManage'),
       export: ok(contacts, 'canExport'),
     },
+    inbound: { read: ok(inbound, 'canRead'), manage: ok(inbound, 'canManage') },
     analytics: { read: ok(analytics, 'canRead') },
     settings: { read: ok(settings, 'canRead'), update: ok(settings, 'canUpdate') },
   };
