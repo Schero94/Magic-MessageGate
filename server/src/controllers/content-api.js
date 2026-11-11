@@ -17,9 +17,13 @@ const { MessageGateError } = require('../utils/errors');
  * @param {object} ctx
  * @returns {string}
  */
+// Strapi 5.61 registers the API token strategy as `content-api-token`
+// (@strapi/admin server/src/strategies/content-api-token); older 5.x used `api-token`.
+const TOKEN_STRATEGIES = new Set(['content-api-token', 'api-token']);
+
 function principal(ctx) {
   const auth = ctx.state?.auth;
-  if (auth?.strategy?.name === 'api-token' && auth.credentials?.id) return `token:${auth.credentials.id}`;
+  if (TOKEN_STRATEGIES.has(auth?.strategy?.name) && auth.credentials?.id) return `token:${auth.credentials.id}`;
   if (ctx.state?.user?.id) return `user:${ctx.state.user.id}`;
   return `ip:${ctx.request.ip}`;
 }
@@ -34,7 +38,7 @@ function principal(ctx) {
  */
 function allowedCaller(ctx, config) {
   const strategy = ctx.state?.auth?.strategy?.name;
-  if (strategy === 'api-token') return true;
+  if (TOKEN_STRATEGIES.has(strategy)) return true;
   return Boolean(config?.contentApi?.allowUsersPermissions) && strategy === 'users-permissions';
 }
 

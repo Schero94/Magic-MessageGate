@@ -278,6 +278,10 @@ test('content API: only API tokens by default; users-permissions logins need the
     assert.equal(ctx.status, 403, handler);
     assert.equal(ctx.body.error.details.code, 'FORBIDDEN', handler);
   }
+  const current = { auth: { strategy: { name: 'content-api-token' }, credentials: { id: 9 } } };
+  const tokenCtx = makeCtx({ method: 'POST', body, state: current });
+  await api.send(tokenCtx);
+  assert.equal(tokenCtx.status, 202, 'Strapi 5.61 strategy name content-api-token');
   ({ api } = await apiSetup({ contentApi: { allowUsersPermissions: true } }));
   const ctx = makeCtx({ method: 'POST', body, state: endUser });
   await api.send(ctx);
