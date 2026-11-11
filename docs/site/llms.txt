@@ -1,0 +1,25 @@
+# Magic MessageGate
+
+> Strapi 5 plugin (npm: strapi-plugin-magic-messagegate, plugin id: magic-messagegate) that sends template messages over WhatsApp (Meta Cloud API), Telegram (Bot API) and SMS (seven.io, Twilio). It has a durable exactly-once outbox, delivery and read tracking, a fallback chain (WhatsApp -> SMS -> e-mail through Magic Mail), per-channel consent with STOP keywords, and an admin built from the Strapi Design System.
+
+Key facts for code generation:
+
+- Send from Strapi code: `strapi.plugin('magic-messagegate').service('messages').send({ to, template, language, variables, idempotencyKey })` returns `{ id, status, channel, duplicate }`.
+- Send from another service: `POST /api/magic-messagegate/messages` with a Strapi API token and body `{ "data": { ... } }`. 202 = queued, 200 = duplicate idempotency key. Users-permissions logins get 403 unless `contentApi.allowUsersPermissions` is true.
+- Always pass an `idempotencyKey` derived from your own business event. Never resend a message with status `uncertain` yourself.
+- Business-initiated WhatsApp messages need an approved template. Free text only works within 24 hours after the contact's last message.
+- Sending needs granted consent for the channel, except an AUTHENTICATION template sent with `transactional: true`.
+- The official APIs cannot tell whether a number is on WhatsApp before sending, whether someone is online, or (on Telegram and SMS) whether a message was read.
+- Events on `strapi.eventHub`: `messagegate.message.queued|sent|delivered|read|failed|uncertain|expired|discarded|fallback`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable`, `messagegate.template.status-changed`. Payloads contain no phone numbers or text.
+
+## Docs
+
+- [README](https://github.com/Schero94/Magic-MessageGate/blob/main/README.md): setup per channel, configuration, permissions, consent, security, several instances, FAQ
+- [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md): exact API contract (inputs, statuses, events, error codes, webhooks)
+- [llms-full.txt](https://schero94.github.io/Magic-MessageGate/llms-full.txt): README and AGENTS.md in one file
+
+## Optional
+
+- [CHANGELOG](https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md): versions and migration notes
+- [CONCEPT.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONCEPT.md): design decisions
+- [Multi-instance acceptance record](https://github.com/Schero94/Magic-MessageGate/blob/main/docs/acceptance/2026-11-11-cluster.md)

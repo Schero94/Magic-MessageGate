@@ -16,6 +16,16 @@
 - Number pre-check (E.164, line type) with an optional cached Twilio Lookup and a monthly budget.
 - Admin and content API routes with RBAC actions, zod validation and rate limits; GDPR export and erasure; retention jobs.
 
+### Security
+
+- The Content API accepts Strapi API tokens only (`content-api-token` in Strapi 5.61, `api-token` before). Users-permissions logins get `403 FORBIDDEN` unless `contentApi.allowUsersPermissions` is set, because these routes act on any phone number.
+- The paid number lookup in the admin needs the `contacts.manage` permission; the free format check stays available with `contacts.read`.
+- A send accepts at most 50 variables and 20 metadata keys.
+
+### Documentation
+
+- New README, `AGENTS.md` API contract, GitHub Pages site with `llms.txt` and `llms-full.txt` (`npm run docs:llms` keeps the latter in sync), and an 8-process PostgreSQL acceptance record.
+
 ### Migration
 
 - Remove `magic-whatsapp` from `config/plugins.*` and add `magic-messagegate`. Set `MESSAGEGATE_ENCRYPTION_KEY` (32+ random characters); without it the plugin derives keys from `APP_KEYS`.

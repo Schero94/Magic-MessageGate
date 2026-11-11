@@ -1,209 +1,414 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Install and configure Magic WhatsApp, the permission-scoped WhatsApp transport plugin for Strapi 5.">
-    <title>Magic WhatsApp | Strapi plugin documentation</title>
-    <link rel="stylesheet" href="./site.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Magic MessageGate: WhatsApp, Telegram and SMS for Strapi 5</title>
+    <meta
+      name="description"
+      content="Strapi 5 plugin for WhatsApp (Cloud API), Telegram and SMS: templates with live preview, exactly-once sending, delivery and read tracking, fallback to SMS, consent and GDPR tools."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#4945ff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#181826" media="(prefers-color-scheme: dark)" />
+    <link rel="canonical" href="https://schero94.github.io/Magic-MessageGate/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Magic MessageGate for Strapi 5" />
+    <meta
+      property="og:description"
+      content="WhatsApp, Telegram and SMS from Strapi, with templates, delivery tracking and automatic fallback."
+    />
+    <meta property="og:url" content="https://schero94.github.io/Magic-MessageGate/" />
+    <meta property="og:image" content="https://schero94.github.io/Magic-MessageGate/img/message-timeline.png" />
+    <meta property="og:image:width" content="1440" />
+    <meta property="og:image:height" content="900" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234945ff'/%3E%3Cpath d='M8 22V10l8 7 8-7v12' fill='none' stroke='white' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt" />
+    <link rel="stylesheet" href="./site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Magic MessageGate",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Node.js",
+        "description": "Strapi 5 plugin for WhatsApp (Cloud API), Telegram and SMS with templates, delivery tracking and fallback.",
+        "license": "https://opensource.org/licenses/MIT",
+        "url": "https://schero94.github.io/Magic-MessageGate/",
+        "codeRepository": "https://github.com/Schero94/Magic-MessageGate",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+      }
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
 
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="#main-content" aria-label="Magic WhatsApp documentation home">
-          <span class="brand-mark" aria-hidden="true">MW</span>
-          <span>Magic WhatsApp</span>
+        <a class="brand" href="#top" aria-label="Magic MessageGate home">
+          <span class="brand-mark" aria-hidden="true">MG</span>
+          <span>Magic MessageGate</span>
         </a>
         <nav class="top-links" aria-label="Primary navigation">
           <a href="#features">Features</a>
-          <a href="#security">Security</a>
+          <a href="#install">Install</a>
           <a href="#api">API</a>
-          <a href="#releases">Releases</a>
+          <a href="#security">Security</a>
+          <a href="https://github.com/Schero94/Magic-MessageGate">GitHub</a>
         </nav>
       </div>
     </header>
 
-    <div class="hero-wrap">
-      <section class="hero" aria-labelledby="page-title">
+    <main id="main-content" tabindex="-1">
+      <section class="hero" id="top" aria-labelledby="page-title">
         <div class="hero-copy">
-          <span class="eyebrow">Strapi 5 plugin</span>
-          <h1 id="page-title">WhatsApp transport for Strapi.</h1>
-          <p>Magic WhatsApp owns the WhatsApp connection, message delivery, and templates. It starts disconnected and only pairs or sends after an authorized administrator acts.</p>
+          <p class="eyebrow">Strapi 5 plugin · MIT</p>
+          <h1 id="page-title">WhatsApp, Telegram and SMS for Strapi.</h1>
+          <p class="lead">
+            Send a template with one call. MessageGate picks the channel, sends the message exactly once, tracks it to
+            <em>delivered</em> and <em>read</em>, and falls back to SMS when WhatsApp can't reach the number. It uses
+            the official provider APIs only.
+          </p>
           <div class="hero-actions">
-            <a class="button primary" href="#install">Install from GitHub</a>
-            <a class="button" href="https://github.com/Schero94/strapi-plugin-magic-whatsapp">View source</a>
+            <a class="button primary" href="#install">Get started</a>
+            <a class="button" href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm package</a>
+            <a class="button" href="https://github.com/Schero94/Magic-MessageGate">Source on GitHub</a>
           </div>
-          <div class="badges" aria-label="Compatibility and package status">
-            <span class="badge">Strapi ^5.57.0</span>
-            <span class="badge">Node.js 22</span>
-            <span class="badge">GitHub install</span>
-            <span class="badge">npm private</span>
-          </div>
+          <ul class="badges" aria-label="Compatibility">
+            <li>Strapi ^5.38</li>
+            <li>Node.js 22 / 24</li>
+            <li>PostgreSQL · MySQL 8 · SQLite</li>
+            <li>5 admin languages</li>
+          </ul>
+        </div>
+        <figure class="hero-shot">
+          <picture>
+            <source media="(max-width: 600px)" srcset="./img/message-timeline-mobile.png" />
+            <source media="(prefers-color-scheme: dark)" srcset="./img/message-timeline-dark.png" />
+            <img
+              src="./img/message-timeline.png"
+              width="1440"
+              height="900"
+              alt="A message in the MessageGate admin with its delivery timeline"
+              fetchpriority="high"
+            />
+          </picture>
+        </figure>
+      </section>
+
+      <section id="features" class="section" aria-labelledby="features-title">
+        <h2 id="features-title">What it does</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Three channels, one API</h3>
+            <p>
+              WhatsApp through Meta's Cloud API, Telegram through the Bot API, SMS through seven.io or Twilio. No vendor
+              SDKs.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Templates with live preview</h3>
+            <p>
+              Variables, a preview per channel and the SMS part count. WhatsApp templates are submitted to Meta from
+              Strapi, and their approval status updates by itself.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Exactly once</h3>
+            <p>
+              A durable outbox in your database. Each message goes out once, also with several Strapi processes. The
+              same idempotency key never sends twice.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Delivery and read tracking</h3>
+            <p>Every message has a timeline, and failures come with a reason in plain language.</p>
+          </article>
+          <article class="card">
+            <h3>Fallback chain and routing rules</h3>
+            <p>
+              WhatsApp → SMS → e-mail through Magic Mail. Numbers that aren't on WhatsApp are remembered. Set the channel
+              order per template, tag or country.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Consent and GDPR</h3>
+            <p>
+              Consent per channel, STOP keywords, export and erasure per contact. Phone numbers are stored encrypted.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Number check</h3>
+            <p>A free format check, plus an optional paid Twilio line-type lookup with a cache and a monthly budget.</p>
+          </article>
+          <article class="card">
+            <h3>Safe retries</h3>
+            <p>
+              Retries only when the provider provably didn't take the message. An unknown outcome becomes
+              <em>uncertain</em>, and an admin decides.
+            </p>
+          </article>
         </div>
       </section>
-    </div>
 
-    <main class="layout" id="main-content">
-      <nav class="side-nav" aria-label="Documentation sections">
-        <a href="#features">Features</a>
-        <a href="#install">Install</a>
-        <a href="#configuration">Configuration</a>
-        <a href="#security">Security</a>
-        <a href="#api">API</a>
-        <a href="#releases">Releases</a>
-      </nav>
+      <section id="limits" class="section" aria-labelledby="limits-title">
+        <h2 id="limits-title">What the official APIs allow</h2>
+        <p class="section-lead">People often ask for things the providers don't offer. Here is what is possible.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Provider capabilities">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Question</th>
+                <th scope="col">WhatsApp</th>
+                <th scope="col">Telegram</th>
+                <th scope="col">SMS</th>
+                <th scope="col">MessageGate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Does the number exist?</th>
+                <td>No check before sending; error 131026 on the first send means "not on WhatsApp"</td>
+                <td>Only for people who started your bot</td>
+                <td>Paid carrier lookups</td>
+                <td>Free format check, optional paid lookup, learns from the first send</td>
+              </tr>
+              <tr>
+                <th scope="row">Is the person online?</th>
+                <td>Not available</td>
+                <td>Not available</td>
+                <td>Not available</td>
+                <td>Shows the last activity instead</td>
+              </tr>
+              <tr>
+                <th scope="row">Has the person read it?</th>
+                <td>Yes, unless read receipts are off</td>
+                <td>No read receipts for bots</td>
+                <td>Delivery receipt only</td>
+                <td>Timeline per message, read rate per template (a lower bound)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <div class="content">
-        <section class="section" id="features" aria-labelledby="features-title">
-          <h2 id="features-title">Features</h2>
-          <p class="section-lead">One Strapi plugin owns WhatsApp transport for the workbench. The connection starts disconnected; booting Strapi does not pair a device or send a message.</p>
-          <div class="card-grid">
-            <article class="card">
-              <h3>Pair only on request</h3>
-              <p>An administrator with connection permission starts pairing. A QR is created only during that action and is returned only through the protected pairing flow.</p>
-            </article>
-            <article class="card">
-              <h3>Manage message templates</h3>
-              <p>Authorized users can list, create, edit, and delete templates stored in the Magic WhatsApp Strapi plugin store.</p>
-            </article>
-            <article class="card">
-              <h3>Send with checks</h3>
-              <p>Sending requires a separate permission. The server validates the international phone number and message length, checks WhatsApp registration, and applies a per-admin rate limit.</p>
-            </article>
-            <article class="card">
-              <h3>Internal Magic Link delivery</h3>
-              <p>The Magic Link plugin can call the registered WhatsApp service to send a bounded-expiry login URL. This is an internal Strapi service contract, not a public endpoint.</p>
-            </article>
-          </div>
-        </section>
+      <section id="screens" class="section" aria-labelledby="screens-title">
+        <h2 id="screens-title">The admin</h2>
+        <p class="section-lead">
+          Built only from the Strapi Design System. Every screen works in light and dark mode and at phone width.
+        </p>
+        <div class="gallery">
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/messages-dark.png" />
+              <img
+                src="./img/messages.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Message list with status, channel and filters"
+              />
+            </picture>
+            <figcaption>Messages with status, channel and filters</figcaption>
+          </figure>
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/template-editor-dark.png" />
+              <img
+                src="./img/template-editor.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Template editor with a live preview"
+              />
+            </picture>
+            <figcaption>Template editor with a live preview</figcaption>
+          </figure>
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/connect-whatsapp-dark.png" />
+              <img
+                src="./img/connect-whatsapp.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Dialog to connect a WhatsApp number through Meta"
+              />
+            </picture>
+            <figcaption>Connect WhatsApp through Meta</figcaption>
+          </figure>
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/contact-detail-dark.png" />
+              <img
+                src="./img/contact-detail.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Contact details with consent per channel and last activity"
+              />
+            </picture>
+            <figcaption>Consent, reachability and last activity</figcaption>
+          </figure>
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/analytics-dark.png" />
+              <img
+                src="./img/analytics.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Analytics with delivery and read rates"
+              />
+            </picture>
+            <figcaption>Delivery and read rates</figcaption>
+          </figure>
+          <figure>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./img/number-check-dark.png" />
+              <img src="./img/number-check.png" width="1440" height="900" loading="lazy" alt="Number check dialog" />
+            </picture>
+            <figcaption>Number check</figcaption>
+          </figure>
+        </div>
+      </section>
 
-        <section class="section" id="install" aria-labelledby="install-title">
-          <h2 id="install-title">Install from GitHub</h2>
-          <p class="section-lead">The package is private on npm. Install it from its GitHub repository instead. npm installs the package dependencies and devDependencies, then runs <code>prepare</code> to build the plugin before installing it.</p>
-          <div class="code-card">
-            <div class="code-label"><span>Install the repository</span></div>
-            <pre><code>npm install github:Schero94/strapi-plugin-magic-whatsapp</code></pre>
-          </div>
-          <p>Enable the plugin in <code>config/plugins.ts</code> or <code>config/plugins.js</code>:</p>
-          <div class="code-card">
-            <div class="code-label"><span>config/plugins.ts</span></div>
-            <pre><code>export default () =&gt; ({
-  'magic-whatsapp': {
+      <section id="install" class="section" aria-labelledby="install-title">
+        <h2 id="install-title">Install in five minutes</h2>
+        <ol class="steps">
+          <li>
+            <p>Install the package:</p>
+            <pre><code>npm install strapi-plugin-magic-messagegate</code></pre>
+          </li>
+          <li>
+            <p>Enable it in <code>config/plugins.js</code>:</p>
+            <pre><code>module.exports = ({ env }) =&gt; ({
+  'magic-messagegate': {
     enabled: true,
+    config: {
+      encryptionKey: env('MESSAGEGATE_ENCRYPTION_KEY'), // 16+ characters, never change it later
+      publicUrl: env('PUBLIC_URL'), // used for webhook URLs
+    },
   },
 });</code></pre>
-          </div>
-          <p>Build the Strapi admin and start the application:</p>
-          <div class="code-card">
-            <div class="code-label"><span>Build and start</span></div>
-            <pre><code>npm run build
-npm run develop</code></pre>
-          </div>
-          <p>Strapi 5.57 or a compatible Strapi 5 release and Node.js 22 are required.</p>
-        </section>
+          </li>
+          <li><p>Build and start Strapi, then open <strong>MessageGate</strong> in the admin menu.</p></li>
+          <li>
+            <p>
+              <strong>Accounts → Connect a channel.</strong> SMS (seven.io or Twilio) or Telegram (a bot token from
+              <a href="https://t.me/BotFather">@BotFather</a>) are the quickest first test.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Templates → Create template</strong>, then send it from <strong>Messages → Send message</strong>.
+            </p>
+          </li>
+        </ol>
+        <h3>WhatsApp</h3>
+        <p>
+          You need a Meta business portfolio, a Meta app with the WhatsApp product and a payment method. Meta charges per
+          delivered template message (<a href="https://developers.facebook.com/docs/whatsapp/pricing">pricing</a>).
+          Connect a new number, or your existing WhatsApp Business App number by QR code (coexistence), through
+          <strong>Connect with Meta</strong>, or paste the credentials by hand. For the Meta window, allow
+          <code>https://connect.facebook.net</code> in <code>script-src</code> and <code>https://www.facebook.com</code>
+          in <code>frame-src</code> of Strapi's security middleware. The
+          <a href="https://github.com/Schero94/Magic-MessageGate#connect-your-channels">README</a> has the full setup.
+        </p>
+      </section>
 
-        <section class="section" id="configuration" aria-labelledby="configuration-title">
-          <h2 id="configuration-title">Configuration</h2>
-          <p class="section-lead">The plugin has no connection secret or auth-state path option. It accepts an optional socket factory for a host integration or fake transport.</p>
-          <div class="table-wrap">
-            <table>
-              <caption>Magic WhatsApp server configuration</caption>
-              <thead>
-                <tr><th scope="col">Option</th><th scope="col">Default</th><th scope="col">Purpose</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><code>socketFactory</code></td><td><code>null</code></td><td>Optional function that creates the WhatsApp socket. Tests can inject a fake socket so they never need a live account.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p>Unsupported configuration keys are rejected. Do not put credentials or auth-state data in Strapi configuration.</p>
-        </section>
+      <section id="api" class="section" aria-labelledby="api-title">
+        <h2 id="api-title">API</h2>
+        <h3>From Strapi code</h3>
+        <pre><code>const { id, status, channel, duplicate } = await strapi
+  .plugin('magic-messagegate')
+  .service('messages')
+  .send({
+    to: '+4915123456789',
+    template: 'order_shipped',
+    language: 'de',
+    variables: { first_name: 'Anna', order_id: 'A-10423' },
+    idempotencyKey: 'order-shipped-A-10423',
+  });</code></pre>
+        <h3>From another service</h3>
+        <pre><code>curl -X POST https://cms.example.com/api/magic-messagegate/messages \
+  -H "Authorization: Bearer $STRAPI_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"to":"+4915123456789","template":"order_shipped","variables":{"first_name":"Anna","order_id":"A-10423"}}}'</code></pre>
+        <p>
+          The Content API accepts Strapi API tokens only. It answers <code>202</code> for a new message and
+          <code>200</code> with <code>duplicate: true</code> for a repeated idempotency key. Other routes:
+          <code>GET /messages/:id</code>, <code>POST /consent</code>, <code>POST /telegram-link</code>,
+          <code>POST /lookup</code>.
+        </p>
+        <h3>Events</h3>
+        <pre><code>strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) =&gt; {
+  strapi.log.warn(`Message ${messageId} on ${channel} failed: ${code}`);
+});</code></pre>
+        <p>
+          The full contract, with every field, status, event and error code, is in
+          <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md">AGENTS.md</a>. For AI tools:
+          <a href="./llms.txt">llms.txt</a> and <a href="./llms-full.txt">llms-full.txt</a>.
+        </p>
+      </section>
 
-        <section class="section" id="security" aria-labelledby="security-title">
-          <h2 id="security-title">Security and permissions</h2>
-          <p class="section-lead">Every route is an authenticated Strapi admin route with a server-enforced permission. The admin UI checks the same permissions for navigation and controls, but the route policy remains the security boundary.</p>
-          <div class="table-wrap">
-            <table>
-              <caption>Registered Magic WhatsApp permissions</caption>
-              <thead>
-                <tr><th scope="col">Permission</th><th scope="col">Allows</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><code>plugin::magic-whatsapp.overview.access</code></td><td>Open the plugin overview.</td></tr>
-                <tr><td><code>plugin::magic-whatsapp.status.view</code></td><td>Read connection status.</td></tr>
-                <tr><td><code>plugin::magic-whatsapp.connection.manage</code></td><td>Connect, view the pairing QR, disconnect, or log out and clear the saved session.</td></tr>
-                <tr><td><code>plugin::magic-whatsapp.templates.list</code></td><td>List stored templates.</td></tr>
-                <tr><td><code>plugin::magic-whatsapp.templates.edit</code></td><td>Create, edit, and delete templates.</td></tr>
-                <tr><td><code>plugin::magic-whatsapp.messages.send</code></td><td>Send direct and template messages.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <h3>Pairing and message delivery</h3>
-          <ul>
-            <li>The service starts in the <code>disconnected</code> state. It does not connect automatically at startup.</li>
-            <li>Pairing starts only after an authorized administrator chooses to connect. The QR is available only to an authenticated administrator with connection permission.</li>
-            <li>Direct and template sends require the send permission. Recipients must use international format, and the server checks that the number is registered before delivery.</li>
-            <li>Messages are limited to 4,096 characters. Sending is rate-limited per admin. Template variables are validated before rendering.</li>
-            <li>Disconnect closes the transport but keeps the saved session. Log out is a separate action that removes the auth-state directory.</li>
-          </ul>
-          <h3>Local auth state</h3>
-          <p>Baileys credentials are kept on the Strapi host under <code>~/.strapi/magic-whatsapp/&lt;app-id&gt;/.whatsapp-auth</code>. The directory is created with owner-only permissions and the plugin rejects a symlinked auth directory. The <code>.whatsapp-auth</code> ignore rule keeps it out of Git. Restrict access to the Strapi process and never copy this directory into source control, logs, issue reports, or shared artifacts.</p>
-          <p class="callout warning">Pairing and sending affect a real WhatsApp account. Local tests use fake transports and do not pair, request a QR, or deliver messages.</p>
-        </section>
+      <section id="configuration" class="section" aria-labelledby="configuration-title">
+        <h2 id="configuration-title">Configuration</h2>
+        <p>
+          <code>config/plugins.js</code> holds the infrastructure options: encryption key, public URL, worker interval
+          and concurrency, retry delays, rate limits, provider timeouts and the Meta app for Embedded Signup. Business
+          rules live on the <strong>Settings</strong> page: consent, opt-out keywords, channel chain, routing rules,
+          e-mail fallback, lookup budget and retention. The
+          <a href="https://github.com/Schero94/Magic-MessageGate#configuration">README</a> lists both with defaults.
+        </p>
+        <h3>Several instances</h3>
+        <p>
+          All state lives in the database, so Railway replicas or a pm2 cluster share it without sticky sessions. In the
+          acceptance run, 8 processes on one PostgreSQL database sent 500 messages with 0 duplicates. When a deploy
+          changes tables, start one replica first.
+        </p>
+      </section>
 
-        <section class="section" id="api" aria-labelledby="api-title">
-          <h2 id="api-title">Admin API and service contract</h2>
-          <p class="section-lead">Routes below use the Strapi admin API base. Each requires an authenticated administrator and the listed permission. The plugin declares no Content API routes.</p>
-          <div class="table-wrap">
-            <table>
-              <caption>Magic WhatsApp admin routes</caption>
-              <thead>
-                <tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Permission</th><th scope="col">Purpose</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><code>GET</code></td><td><code>/magic-whatsapp/status</code></td><td>Status view</td><td>Read disconnected, connecting, connected, or error state.</td></tr>
-                <tr><td><code>POST</code></td><td><code>/magic-whatsapp/connection</code></td><td>Connection manage</td><td>Start pairing or return the current connection state.</td></tr>
-                <tr><td><code>GET</code></td><td><code>/magic-whatsapp/connection/qr</code></td><td>Connection manage</td><td>Read the temporary pairing QR while pairing is pending.</td></tr>
-                <tr><td><code>DELETE</code></td><td><code>/magic-whatsapp/connection</code></td><td>Connection manage</td><td>Disconnect without deleting the saved session.</td></tr>
-                <tr><td><code>DELETE</code></td><td><code>/magic-whatsapp/connection/session</code></td><td>Connection manage</td><td>Log out and remove the saved auth state.</td></tr>
-                <tr><td><code>GET</code></td><td><code>/magic-whatsapp/templates</code></td><td>Templates list</td><td>List valid stored templates.</td></tr>
-                <tr><td><code>POST</code>, <code>PUT</code>, <code>DELETE</code></td><td><code>/magic-whatsapp/templates</code> and <code>/magic-whatsapp/templates/:id</code></td><td>Templates edit</td><td>Create, update, or delete a template.</td></tr>
-                <tr><td><code>POST</code></td><td><code>/magic-whatsapp/messages</code></td><td>Messages send</td><td>Send a direct text message.</td></tr>
-                <tr><td><code>POST</code></td><td><code>/magic-whatsapp/messages/templates</code></td><td>Messages send</td><td>Render a stored template and send it.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <h3>Magic Link service</h3>
-          <p>The Magic Link plugin can resolve the registered <code>magic-whatsapp</code> service and call <code>sendMagicLink({ phoneNumber, loginUrl, expiresInSeconds })</code>. It requires a connected transport, an international phone number, and an HTTPS login URL. HTTP is accepted for localhost only. URLs are limited to 2,048 characters and expiry must be from 1 second to 24 hours. The message includes the login URL and expiry, then uses the same recipient check and send path as other messages. The method returns <code>{ success: true }</code> on delivery and throws a sanitized error on failure. This is an internal service call, not an HTTP route.</p>
-          <h3>Fake transport</h3>
-          <p>Unit tests inject <code>socketFactory</code> and use a fake Baileys socket to exercise connection, template, Magic Link, and send behavior. They do not need a WhatsApp account. Keep this pattern for local test and acceptance work.</p>
-        </section>
+      <section id="security" class="section" aria-labelledby="security-title">
+        <h2 id="security-title">Security and privacy</h2>
+        <ul class="checks">
+          <li>Admin routes need a MessageGate permission (14 actions). The Content API needs an API token.</li>
+          <li>Provider secrets are encrypted and never returned. Phone numbers are encrypted and found by a keyed hash.</li>
+          <li>Webhooks check the provider signature (Meta, Telegram, seven.io, Twilio) and ignore repeats.</li>
+          <li>Template variables are plain text, and Telegram HTML is escaped. No URL from user input is fetched.</li>
+          <li>Rate limits and the lookup budget are counted in the database, so they hold across processes.</li>
+          <li>Two runtime dependencies: <code>zod</code> and <code>libphonenumber-js</code>.</li>
+        </ul>
+        <p>
+          Report vulnerabilities privately through
+          <a href="https://github.com/Schero94/Magic-MessageGate/security/advisories/new">GitHub security advisories</a>.
+        </p>
+      </section>
 
-        <section class="section" id="releases" aria-labelledby="releases-title">
-          <h2 id="releases-title">Releases and package status</h2>
-          <p class="section-lead">This repository uses Conventional Commits and GitHub-only semantic-release. Releases create GitHub tags and release notes. The npm package remains private and is not published.</p>
-          <div class="code-card">
-            <div class="code-label"><span>Run checks locally</span></div>
-            <pre><code>npm ci --legacy-peer-deps
-npm test
-npm run verify
-npm run build</code></pre>
-          </div>
-          <p>The test suite uses fake transports. Do not run pairing or send actions during verification.</p>
-          <div class="link-list">
-            <a href="https://github.com/Schero94/strapi-plugin-magic-whatsapp">GitHub repository</a>
-            <a href="https://github.com/Schero94/strapi-plugin-magic-whatsapp/releases">GitHub releases</a>
-            <a href="https://docs.npmjs.com/cli/v11/using-npm/scripts">npm prepare lifecycle documentation</a>
-          </div>
-        </section>
-      </div>
+      <section id="releases" class="section" aria-labelledby="releases-title">
+        <h2 id="releases-title">Releases</h2>
+        <p>
+          Versions follow semantic versioning and are published to
+          <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm</a>. Changes and migration notes
+          are in the <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md">changelog</a>.
+          MessageGate replaces the unpublished <code>magic-whatsapp</code> plugin, which drove WhatsApp Web through an
+          unofficial library; see the
+          <a href="https://github.com/Schero94/Magic-MessageGate#migrating-from-magic-whatsapp">migration notes</a>.
+        </p>
+      </section>
     </main>
 
     <footer class="footer">
-      <p>Magic WhatsApp is installed from GitHub. It is not published to npm.</p>
-      <p><a href="https://github.com/Schero94/strapi-plugin-magic-whatsapp">Source code and issue tracker</a></p>
+      <p>
+        Magic MessageGate · MIT license ·
+        <a href="https://github.com/Schero94/Magic-MessageGate">GitHub</a> ·
+        <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm</a> ·
+        <a href="./llms.txt">llms.txt</a>
+      </p>
     </footer>
   </body>
 </html>

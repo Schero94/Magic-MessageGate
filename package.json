@@ -65,7 +65,8 @@
     "format:check": "prettier --check .",
     "test": "node --test --test-concurrency=4 \"tests/*.test.js\"",
     "test:pg": "node --test --test-concurrency=1 \"tests/pg/*.test.js\"",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "docs:llms": "node scripts/build-llms-full.mjs"
   },
   "dependencies": {
     "libphonenumber-js": "^1.13.15",
