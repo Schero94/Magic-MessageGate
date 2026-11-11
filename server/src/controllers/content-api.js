@@ -24,12 +24,39 @@ function principal(ctx) {
   return `ip:${ctx.request.ip}`;
 }
 
+/**
+ * Whether the caller may use the Content API: a Strapi API token, or a
+ * users-permissions login when `contentApi.allowUsersPermissions` is on.
+ *
+ * @param {object} ctx
+ * @param {object} config - Plugin config.
+ * @returns {boolean}
+ */
+function allowedCaller(ctx, config) {
+  const strategy = ctx.state?.auth?.strategy?.name;
+  if (strategy === 'api-token') return true;
+  return Boolean(config?.contentApi?.allowUsersPermissions) && strategy === 'users-permissions';
+}
+
 module.exports = ({ strapi }) => {
   const core = () => coreFor(strapi);
+
+  /**
+   * Answers 403 for callers without an API token (see allowedCaller).
+   *
+   * @param {object} ctx
+   * @returns {boolean} true when the request was refused.
+   */
+  const refuse = (ctx) => {
+    if (allowedCaller(ctx, core().ctx.config)) return false;
+    sendError(ctx, 403, 'FORBIDDEN', 'Use a Strapi API token for the MessageGate Content API');
+    return true;
+  };
 
   return {
     /** POST /api/magic-messagegate/messages */
     async send(ctx) {
+      if (refuse(ctx)) return undefined;
       const c = core();
       const key = principal(ctx);
       const hits = await hit(c.ctx.knex, `send:${key}`, 60_000, 1, c.ctx.now());
@@ -53,6 +80,7 @@ module.exports = ({ strapi }) => {
 
     /** GET /api/magic-messagegate/messages/:id */
     async status(ctx) {
+      if (refuse(ctx)) return undefined;
       return handle(
         ctx,
         async () => {
@@ -78,6 +106,7 @@ module.exports = ({ strapi }) => {
 
     /** POST /api/magic-messagegate/consent */
     async consent(ctx) {
+      if (refuse(ctx)) return undefined;
       return handle(
         ctx,
         async () => {
@@ -105,6 +134,7 @@ module.exports = ({ strapi }) => {
 
     /** POST /api/magic-messagegate/telegram-link */
     async telegramLink(ctx) {
+      if (refuse(ctx)) return undefined;
       return handle(
         ctx,
         async () => {
@@ -123,6 +153,7 @@ module.exports = ({ strapi }) => {
 
     /** POST /api/magic-messagegate/lookup */
     async lookup(ctx) {
+      if (refuse(ctx)) return undefined;
       const c = core();
       const hits = await hit(c.ctx.knex, `lookup:${principal(ctx)}`, 60_000, 1, c.ctx.now());
       if (hits > c.ctx.config.rateLimits.lookupPerMinute)

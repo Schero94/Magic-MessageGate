@@ -12,6 +12,7 @@ const { coreFor } = services;
 const { handle, sendError } = require('./respond');
 const { hit } = require('../store/coordination');
 const { MessageGateError } = require('../utils/errors');
+const { actionId } = require('../permissions');
 
 const id = z.string().regex(/^[a-z0-9]{6,32}$/);
 const channel = z.enum(['whatsapp', 'telegram', 'sms']);
@@ -217,7 +218,13 @@ module.exports = ({ strapi }) => {
         .object({ phone: z.string().max(40), remote: z.boolean().optional() })
         .strict()
         .parse(ctx.request.body || {});
-      return core().lookup.check(body.phone, { remote: body.remote !== false });
+      const remote = body.remote !== false;
+      // A remote lookup is paid and spends the shared monthly budget, so it
+      // needs the manage permission; read-only admins get the free check.
+      if (remote && !ctx.state?.userAbility?.can(actionId('contacts.manage'))) {
+        throw new MessageGateError('FORBIDDEN');
+      }
+      return core().lookup.check(body.phone, { remote });
     }),
     lookupBudget: read(() => core().lookup.budgetStatus()),
     analytics: read((ctx) => {

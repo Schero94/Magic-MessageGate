@@ -42,6 +42,13 @@ const schema = z
       .strict()
       .prefault({}),
     defaultNotAfterHours: z.number().int().min(1).max(720).default(24),
+    // The Content API is for servers holding a Strapi API token. Users-
+    // permissions logins (end users) are refused unless this is turned on,
+    // because the routes act on any phone number (send, consent, lookup).
+    contentApi: z
+      .object({ allowUsersPermissions: z.boolean().default(false) })
+      .strict()
+      .prefault({}),
     rateLimits: z
       .object({
         sendPerMinute: z.number().int().min(1).max(100_000).default(120),

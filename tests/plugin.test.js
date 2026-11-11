@@ -261,3 +261,42 @@ test('service API: send, get, contacts and Telegram link', async () => {
   assert.match(link.token, /^[A-Za-z0-9_-]{32}$/);
   assert.equal((await services.lookup({ strapi }).check(PHONE)).valid, true);
 });
+
+test('content API: only API tokens by default; users-permissions logins need the opt-in', async () => {
+  const body = { to: PHONE, channel: 'sms', template: 'hello', language: 'de', variables: { name: 'A' } };
+  const endUser = { auth: { strategy: { name: 'users-permissions' }, credentials: { id: 3 } } };
+  let { api } = await apiSetup();
+  for (const [handler, ctx] of [
+    ['send', makeCtx({ method: 'POST', body, state: endUser })],
+    ['status', makeCtx({ params: { id: 'abcdef12' }, state: endUser })],
+    ['consent', makeCtx({ method: 'POST', body: { phone: PHONE, channel: 'sms', status: 'granted' }, state: endUser })],
+    ['telegramLink', makeCtx({ method: 'POST', body: { phone: PHONE }, state: endUser })],
+    ['lookup', makeCtx({ method: 'POST', body: { phone: PHONE }, state: endUser })],
+    ['send', makeCtx({ method: 'POST', body, state: {} })],
+  ]) {
+    await api[handler](ctx);
+    assert.equal(ctx.status, 403, handler);
+    assert.equal(ctx.body.error.details.code, 'FORBIDDEN', handler);
+  }
+  ({ api } = await apiSetup({ contentApi: { allowUsersPermissions: true } }));
+  const ctx = makeCtx({ method: 'POST', body, state: endUser });
+  await api.send(ctx);
+  assert.equal(ctx.status, 202);
+});
+
+test('admin API: a paid number lookup needs contacts.manage; the free check does not', async () => {
+  const { admin } = await apiSetup();
+  const readOnly = { userAbility: { can: () => false } };
+  let ctx = makeCtx({ method: 'POST', body: { phone: PHONE }, state: readOnly });
+  await admin.lookup(ctx);
+  assert.equal(ctx.status, 403);
+  assert.equal(ctx.body.error.details.code, 'FORBIDDEN');
+  ctx = makeCtx({ method: 'POST', body: { phone: PHONE, remote: false }, state: readOnly });
+  await admin.lookup(ctx);
+  assert.equal(ctx.status, 200);
+  assert.equal(ctx.body.data.valid, true);
+  const manager = { userAbility: { can: (action) => action === 'plugin::magic-messagegate.contacts.manage' } };
+  ctx = makeCtx({ method: 'POST', body: { phone: PHONE }, state: manager });
+  await admin.lookup(ctx);
+  assert.equal(ctx.status, 200);
+});

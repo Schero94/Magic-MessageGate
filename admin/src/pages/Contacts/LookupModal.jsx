@@ -113,7 +113,7 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                 <Field.Error />
               </Field.Root>
 
-              {budget?.enabled ? (
+              {budget?.enabled && rbac.contacts.manage ? (
                 <Box background="neutral100" hasRadius padding={4}>
                   <Flex direction="column" alignItems="stretch" gap={2}>
                     <Flex justifyContent="space-between" gap={2} wrap="wrap">

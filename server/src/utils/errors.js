@@ -25,6 +25,7 @@ const CODES = Object.freeze({
   DEADLINE_PASSED: { status: 409, message: 'The deadline for this message has passed' },
   RATE_LIMITED: { status: 429, message: 'Too many requests, try again later' },
   NOT_FOUND: { status: 404, message: 'Not found' },
+  FORBIDDEN: { status: 403, message: 'This action needs more permissions' },
   STATE_CHANGED: { status: 409, message: 'The message was changed meanwhile' },
   CONFIRMATION_REQUIRED: { status: 409, message: 'Confirm the duplicate risk to retry an uncertain message' },
   PAYLOAD_PURGED: { status: 409, message: 'The message content was already removed' },
