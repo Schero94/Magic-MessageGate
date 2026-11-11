@@ -9,9 +9,16 @@
  * - setWebhook: url, secret_token (1-256 chars, A-Za-z0-9_-) echoed in
  *   X-Telegram-Bot-Api-Secret-Token, allowed_updates.
  * - Errors: { ok: false, error_code, description, parameters.retry_after }.
+ * - sendPhoto / sendDocument: `photo`/`document` as an HTTP URL, `caption`
+ *   0-1024 characters after entity parsing. By URL: photos up to 5 MB, other
+ *   files 20 MB, and sendDocument by URL only works for .PDF and .ZIP.
  * Bots cannot write to a phone number and get no read receipts.
  */
 const { request } = require('./http');
+const { fetchLimited } = require('../utils/download');
+
+/** getFile downloads are limited to 20 MB by the Bot API. */
+const MAX_DOWNLOAD = 20 * 1024 * 1024;
 
 const DEFAULT_BASE = 'https://api.telegram.org';
 const MAX_TEXT = 4096;
@@ -78,15 +85,28 @@ module.exports = {
    * @returns {Promise<{outcome: string, providerMessageId: string|null, code: string|null, retryAfterMs: number|null, accountProblem: boolean, blocked: boolean}>}
    */
   async send({ config, to, payload, settings, fetchImpl }) {
+    let method = 'sendMessage';
+    let body = {
+      chat_id: to,
+      text: String(payload.text).slice(0, MAX_TEXT),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    };
+    if (payload.kind === 'photo' || payload.kind === 'document') {
+      method = payload.kind === 'photo' ? 'sendPhoto' : 'sendDocument';
+      body = { chat_id: to, [payload.kind]: payload.url, parse_mode: 'HTML' };
+      if (payload.caption) body.caption = payload.caption;
+    }
+    // Inline keyboard: one button per row, callback_data 1-64 bytes.
+    if (Array.isArray(payload.buttons) && payload.buttons.length) {
+      body.reply_markup = {
+        inline_keyboard: payload.buttons.map((b) => [{ text: b.title, callback_data: b.payload }]),
+      };
+    }
     const res = await request({
-      url: url(config, settings, 'sendMessage'),
+      url: url(config, settings, method),
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        chat_id: to,
-        text: String(payload.text).slice(0, MAX_TEXT),
-        parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true },
-      }),
+      body: JSON.stringify(body),
       timeoutMs: settings?.timeoutMs || 15_000,
       fetchImpl,
     });
@@ -113,6 +133,58 @@ module.exports = {
   },
 
   /**
+   * Downloads an inbound file: getFile → file_path (link valid at least one
+   * hour), then https://api.telegram.org/file/bot<token>/<file_path>.
+   *
+   * @param {{config: object, ref: {id: string}, maxBytes: number, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, bytes?: Buffer, mime?: string|null, code: string|null}>}
+   */
+  async downloadMedia({ config, ref, maxBytes, settings, fetchImpl }) {
+    if (!/^[A-Za-z0-9_-]{10,200}$/.test(String(ref?.id || ''))) return { ok: false, code: 'MEDIA_REF_INVALID' };
+    const res = await request({
+      url: url(config, settings, 'getFile'),
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ file_id: ref.id }),
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    const filePath = res.json?.result?.file_path;
+    if (classify(res).outcome !== 'accepted' || typeof filePath !== 'string') {
+      return { ok: false, code: res.json?.description?.includes?.('too big') ? 'MEDIA_TOO_LARGE' : 'MEDIA_EXPIRED' };
+    }
+    if (!/^[A-Za-z0-9_./-]{1,300}$/.test(filePath) || filePath.includes('..')) {
+      return { ok: false, code: 'MEDIA_REF_INVALID' };
+    }
+    const file = await fetchLimited({
+      url: `${settings?.baseUrl || DEFAULT_BASE}/file/bot${config.botToken}/${filePath}`,
+      maxBytes: Math.min(maxBytes, MAX_DOWNLOAD),
+      fetchImpl,
+    });
+    if (!file.ok) {
+      const code = { TOO_LARGE: 'MEDIA_TOO_LARGE', EXPIRED: 'MEDIA_EXPIRED' }[file.code] || 'MEDIA_FETCH_FAILED';
+      return { ok: false, code };
+    }
+    return { ok: true, bytes: file.bytes, mime: null, code: null };
+  },
+
+  /**
+   * Stops the loading indicator after an inline keyboard press.
+   *
+   * @param {{config: object, callbackQueryId: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean}>}
+   */
+  async answerCallback({ config, callbackQueryId, settings, fetchImpl }) {
+    const res = await request({
+      url: url(config, settings, 'answerCallbackQuery'),
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ callback_query_id: callbackQueryId }),
+      timeoutMs: 10_000,
+      fetchImpl,
+    });
+    return { ok: classify(res).outcome === 'accepted' };
+  },
+
+  /**
    * Registers the webhook with a secret token.
    *
    * @param {{config: object, webhookUrl: string, secretToken: string, settings?: object, fetchImpl?: Function}} input
@@ -125,7 +197,7 @@ module.exports = {
       body: JSON.stringify({
         url: webhookUrl,
         secret_token: secretToken,
-        allowed_updates: ['message'],
+        allowed_updates: ['message', 'callback_query'],
         drop_pending_updates: false,
       }),
       timeoutMs: 10_000,

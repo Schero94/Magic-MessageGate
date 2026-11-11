@@ -5,6 +5,7 @@ const meta = require('./meta');
 const telegram = require('./telegram');
 const seven = require('./seven');
 const twilio = require('./twilio');
+const sandbox = require('./sandbox');
 
 const ADAPTERS = Object.freeze({ meta, telegram, seven, twilio });
 
@@ -13,6 +14,7 @@ const PROVIDERS_BY_CHANNEL = Object.freeze({
   whatsapp: ['meta'],
   telegram: ['telegram'],
   sms: ['seven', 'twilio'],
+  rcs: ['twilio'],
 });
 
 /**
@@ -21,4 +23,17 @@ const PROVIDERS_BY_CHANNEL = Object.freeze({
  */
 const getAdapter = (provider) => ADAPTERS[provider] || null;
 
-module.exports = { ADAPTERS, PROVIDERS_BY_CHANNEL, getAdapter };
+/**
+ * Adapter for a provider in the configured mode: in `sandbox` mode every
+ * provider is served by the deterministic in-process fake.
+ *
+ * @param {string} provider
+ * @param {'live'|'sandbox'} [mode]
+ * @returns {object|null}
+ */
+const adapterFor = (provider, mode = 'live') => {
+  if (!ADAPTERS[provider]) return null;
+  return mode === 'sandbox' ? sandbox.forProvider(provider) : ADAPTERS[provider];
+};
+
+module.exports = { ADAPTERS, PROVIDERS_BY_CHANNEL, getAdapter, adapterFor };

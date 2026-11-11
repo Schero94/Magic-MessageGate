@@ -115,11 +115,11 @@ test('source contract: sections are RBAC gated and destructive actions use Confi
     );
 });
 
-test('permissions: the admin uses exactly the 14 server actions', () => {
+test('permissions: the admin uses exactly the 16 server actions', () => {
   const src = fs.readFileSync(path.join(ADMIN, 'permissions.js'), 'utf8');
   const actions = [...src.matchAll(/action\('([a-z.]+)'\)/g)].map((m) => m[1]).sort();
   const { ACTIONS } = require('../server/src/permissions.js');
-  assert.equal(actions.length, 14);
+  assert.equal(actions.length, 16);
   assert.deepEqual(actions, ACTIONS.map((a) => a.uid).sort());
 });
 
@@ -130,7 +130,7 @@ test('permissions: registered actions match the Strapi 5 action-provider schema'
     service: () => ({ actionProvider: { registerMany: async (list) => (registered = list) } }),
   };
   await registerActions(strapi);
-  assert.equal(registered.length, 14);
+  assert.equal(registered.length, 16);
   const allowed = new Set(['uid', 'section', 'pluginName', 'displayName', 'subCategory']);
   for (const a of registered) {
     assert.equal(a.section, 'plugins');

@@ -7,10 +7,12 @@
  * outside the 24-hour window; they start as DRAFT, become PENDING after
  * "Submit to Meta" and follow Meta's status from then on (sync or webhook).
  * Telegram and SMS templates need no review and are APPROVED on save.
+ * RCS templates with plain text (optionally one image/file URL) are APPROVED
+ * on save; a rich card with a title or buttons becomes a Twilio Content
+ * template ("Create on Twilio") and is APPROVED once it has a Content SID.
  */
 const { z } = require('zod');
 const { T } = require('../store/schema');
-const { getAdapter } = require('../adapters');
 const { MessageGateError } = require('../utils/errors');
 const engine = require('../utils/template-engine');
 const { newId, parseJson } = require('./context');
@@ -38,6 +40,9 @@ const whatsappContent = z
           .string()
           .regex(/^\d{1,30}$/)
           .optional(),
+        // Media-library file: the sample uploaded to Meta on submit and the
+        // default header media at send time (a per-message attachment wins).
+        fileId: z.number().int().positive().optional(),
       })
       .strict()
       .optional(),
@@ -51,6 +56,11 @@ const whatsappContent = z
             text: z.string().trim().min(1).max(25),
             url: z.string().url().max(2000).startsWith('https://').optional(),
             variable: z.string().max(60).optional(),
+            // QUICK_REPLY: fixed payload returned in the inbound button message.
+            payload: z
+              .string()
+              .regex(/^[A-Za-z0-9_.:-]{1,64}$/)
+              .optional(),
           })
           .strict()
       )
@@ -61,10 +71,87 @@ const whatsappContent = z
 
 const textContent = (max) => z.object({ text: z.string().trim().min(1).max(max) }).strict();
 
+/** Telegram: text plus optional inline keyboard buttons with fixed callback data. */
+const telegramContent = z
+  .object({
+    text: z.string().trim().min(1).max(4096),
+    buttons: z
+      .array(
+        z
+          .object({
+            title: z.string().trim().min(1).max(40),
+            payload: z.string().regex(/^[A-Za-z0-9_.:-]{1,64}$/),
+          })
+          .strict()
+      )
+      .max(8)
+      .optional(),
+  })
+  .strict();
+
+/** Rich card actions (https://www.twilio.com/docs/content/twiliocard): up to 4 on the card. */
+const rcsContent = z
+  .object({
+    text: z.string().trim().min(1).max(1600),
+    title: z.string().trim().min(1).max(200).optional(),
+    mediaUrl: z.string().url().max(2000).startsWith('https://').optional(),
+    buttons: z
+      .array(
+        z
+          .object({
+            type: z.enum(['URL', 'PHONE_NUMBER', 'QUICK_REPLY']),
+            title: z.string().trim().min(1).max(25),
+            url: z.string().url().max(2000).startsWith('https://').optional(),
+            phone: z
+              .string()
+              .regex(/^\+\d{6,16}$/)
+              .optional(),
+            payload: z
+              .string()
+              .regex(/^[A-Za-z0-9_.:-]{1,64}$/)
+              .optional(),
+          })
+          .strict()
+          .refine((b) => (b.type === 'URL' ? Boolean(b.url) : b.type === 'PHONE_NUMBER' ? Boolean(b.phone) : true), {
+            message: 'url or phone is required for this button type',
+          })
+          .refine((b) => b.type !== 'QUICK_REPLY' || b.title.length <= 20, { message: 'quick reply title ≤ 20' })
+      )
+      .max(4)
+      .optional(),
+    contentSid: z
+      .string()
+      .regex(/^HX[0-9a-f]{32}$/)
+      .optional(),
+    variableOrder: z.array(z.string().max(60)).max(50).optional(),
+  })
+  .strict();
+
+/**
+ * Whether an RCS template needs a Twilio Content template (title or buttons).
+ *
+ * @param {object} content
+ * @returns {boolean}
+ */
+const needsContent = (content) => Boolean(content.title || content.buttons?.length);
+
+/**
+ * Initial approval status for a template.
+ *
+ * @param {string} channel
+ * @param {object} content
+ * @returns {string}
+ */
+const initialStatus = (channel, content) => {
+  if (channel === 'whatsapp') return 'DRAFT';
+  if (channel === 'rcs' && needsContent(content) && !content.contentSid) return 'DRAFT';
+  return 'APPROVED';
+};
+
 const templateSchema = z
   .object({
     key: z.string().regex(KEY),
-    channel: z.enum(['whatsapp', 'telegram', 'sms']),
+    channel: z.enum(['whatsapp', 'rcs', 'telegram', 'sms']),
     language: z.string().regex(LANGUAGE),
     name: z.string().trim().min(1).max(160),
     category: z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']).default('UTILITY'),
@@ -81,6 +168,38 @@ const templateSchema = z
  * @param {{accounts: ReturnType<typeof import('./accounts').createAccounts>}} deps
  */
 function createTemplates(ctx, deps) {
+  /**
+   * Uploads the header sample file of a media template to Meta (Resumable
+   * Upload API) and returns the handle for `example.header_handle`.
+   *
+   * @param {object} account - Meta account row.
+   * @param {object} header - `{ format, fileId }`.
+   * @returns {Promise<string>}
+   * @throws {MessageGateError} CONFIG_INVALID (no sample file or app id), PROVIDER_ERROR
+   */
+  async function sampleHandle(account, header) {
+    if (!header.fileId) throw new MessageGateError('CONFIG_INVALID', undefined, { field: 'content.header.fileId' });
+    const config = deps.accounts.configOf(account);
+    const appId = config.appId || ctx.config.providers.meta.embeddedSignup?.appId;
+    if (!appId) throw new MessageGateError('CONFIG_INVALID', undefined, { field: 'appId' });
+    const wanted = { IMAGE: 'image', VIDEO: 'video', DOCUMENT: 'document' }[header.format];
+    const sample = await deps.attachments.readSample(header.fileId, 16 * 1024 * 1024);
+    if (deps.attachments.MIME[sample.mimeType].kind !== wanted) {
+      throw new MessageGateError('ATTACHMENT_TYPE_MISMATCH', undefined, { field: 'content.header.fileId' });
+    }
+    const result = await ctx.adapter('meta').uploadSample({
+      appId,
+      accessToken: config.accessToken,
+      bytes: sample.bytes,
+      fileName: sample.filename,
+      mimeType: sample.mimeType,
+      settings: ctx.config.providers.meta,
+      fetchImpl: ctx.fetchImpl,
+    });
+    if (!result.ok) throw new MessageGateError('PROVIDER_ERROR', undefined, { step: 'upload', code: result.code });
+    return result.handle;
+  }
+
   /**
    * @param {object} row
    * @returns {object}
@@ -117,9 +236,11 @@ function createTemplates(ctx, deps) {
     const contentSchema =
       data.channel === 'whatsapp'
         ? whatsappContent
-        : data.channel === 'telegram'
-          ? textContent(4096)
-          : textContent(1600);
+        : data.channel === 'rcs'
+          ? rcsContent
+          : data.channel === 'telegram'
+            ? telegramContent
+            : textContent(1600);
     const content = contentSchema.safeParse(data.content);
     if (!content.success) {
       throw new MessageGateError('CONFIG_INVALID', undefined, {
@@ -210,7 +331,7 @@ function createTemplates(ctx, deps) {
         parameter_format: data.parameterFormat,
         content: JSON.stringify(content),
         variables: JSON.stringify(variables),
-        approval_status: data.channel === 'whatsapp' ? 'DRAFT' : 'APPROVED',
+        approval_status: initialStatus(data.channel, content),
         version: 1,
         is_active: data.isActive,
         created_at: now,
@@ -255,7 +376,29 @@ function createTemplates(ctx, deps) {
           field: String(parsed.error.issues[0].path[0] ?? ''),
         });
       }
-      const { content, variables } = normalise(parsed.data);
+      const normalised = normalise(parsed.data);
+      const { variables } = normalised;
+      let { content } = normalised;
+      // A changed RCS card no longer matches its Twilio Content template.
+      if (row.channel === 'rcs' && current.content.contentSid) {
+        const strip = (value) => {
+          const copy = { ...value };
+          delete copy.contentSid;
+          delete copy.variableOrder;
+          return copy;
+        };
+        const sameCard = JSON.stringify(strip(content)) === JSON.stringify(strip(current.content));
+        const manualSid = content.contentSid && content.contentSid !== current.content.contentSid;
+        if (!manualSid) {
+          content = sameCard
+            ? {
+                ...strip(content),
+                contentSid: current.content.contentSid,
+                ...(current.content.variableOrder ? { variableOrder: current.content.variableOrder } : {}),
+              }
+            : strip(content);
+        }
+      }
       const contentChanged =
         JSON.stringify(content) !== JSON.stringify(current.content) || parsed.data.category !== current.category;
       await ctx
@@ -269,7 +412,12 @@ function createTemplates(ctx, deps) {
           variables: JSON.stringify(variables),
           is_active: parsed.data.isActive,
           version: contentChanged ? Number(row.version) + 1 : Number(row.version),
-          approval_status: row.channel === 'whatsapp' && contentChanged ? 'DRAFT' : row.approval_status,
+          approval_status:
+            row.channel === 'whatsapp'
+              ? contentChanged
+                ? 'DRAFT'
+                : row.approval_status
+              : initialStatus(row.channel, content),
           updated_at: ctx.now(),
         });
       return toDto(await api.getRow(documentId));
@@ -307,6 +455,94 @@ function createTemplates(ctx, deps) {
     },
 
     /**
+     * Renders the active template for a key, language and channel without
+     * sending (programmatic tests, `POST /templates/render`).
+     *
+     * @param {string} key
+     * @param {string|undefined} language
+     * @param {Record<string, unknown>} variables
+     * @param {string} channel
+     * @returns {Promise<{templateId: string, key: string, language: string, channel: string, approvalStatus: string, preview: string, payload: object, sms?: object}>}
+     * @throws {MessageGateError} UNKNOWN_TEMPLATE, MISSING_VARIABLE, INVALID_VARIABLE
+     */
+    async render(key, language, variables, channel) {
+      const row = await api.resolve(channel, key, language);
+      if (!row) throw new MessageGateError('UNKNOWN_TEMPLATE');
+      const dto = toDto(row);
+      let rendered;
+      try {
+        rendered = engine.render(dto, variables || {});
+      } catch (error) {
+        throw new MessageGateError(error.code || 'INVALID_VARIABLE', undefined, error.details);
+      }
+      return {
+        templateId: dto.id,
+        key: dto.key,
+        language: dto.language,
+        channel: dto.channel,
+        approvalStatus: dto.approvalStatus,
+        ...rendered,
+      };
+    },
+
+    /**
+     * Creates the Twilio Content template (twilio/card plus twilio/text for
+     * devices without RCS) of an RCS rich card and stores its Content SID.
+     * Named variables become Twilio's numbered variables in a stored order.
+     *
+     * @param {string} documentId
+     * @param {string} accountDocumentId - Twilio account (RCS or SMS, same credentials).
+     * @returns {Promise<object>} DTO
+     * @throws {MessageGateError} NOT_FOUND, NO_ACCOUNT, PROVIDER_ERROR
+     */
+    async submitToTwilio(documentId, accountDocumentId) {
+      const row = await api.getRow(documentId);
+      if (!row || row.channel !== 'rcs') throw new MessageGateError('NOT_FOUND');
+      const account = await deps.accounts.getRow(accountDocumentId);
+      if (!account || account.provider !== 'twilio') throw new MessageGateError('NO_ACCOUNT');
+      const dto = toDto(row);
+      const c = dto.content;
+      const order = engine.templateVariables({ ...dto, parameterFormat: dto.parameterFormat });
+      const numbered = (text) => engine.fillRaw(text, dto.parameterFormat, (name) => `{{${order.indexOf(name) + 1}}}`);
+      const sample = (name) => dto.variables.find((v) => v.name === name)?.example || 'Sample';
+      const card = { body: numbered(c.text) };
+      if (c.title) card.title = numbered(c.title);
+      if (c.mediaUrl) card.media = [c.mediaUrl];
+      if (c.buttons?.length) {
+        card.actions = c.buttons.map((b, i) =>
+          b.type === 'URL'
+            ? { type: 'URL', title: b.title, url: b.url }
+            : b.type === 'PHONE_NUMBER'
+              ? { type: 'PHONE_NUMBER', title: b.title, phone: b.phone }
+              : { type: 'QUICK_REPLY', title: b.title, id: b.payload || `btn_${i + 1}` }
+        );
+      }
+      const result = await ctx.adapter('twilio').createContent({
+        config: deps.accounts.configOf(account),
+        content: {
+          friendlyName: `${dto.key}_${dto.language}_v${dto.version}`.slice(0, 64),
+          language: dto.language.split('_')[0],
+          variables: Object.fromEntries(order.map((name, i) => [String(i + 1), sample(name)])),
+          card,
+          text: numbered(c.title ? `${c.title}\n\n${c.text}` : c.text).slice(0, 1600),
+        },
+        settings: ctx.config.providers.twilio,
+        fetchImpl: ctx.fetchImpl,
+      });
+      if (!result.ok) throw new MessageGateError('PROVIDER_ERROR', undefined, { code: result.code });
+      await ctx
+        .knex(T.templates)
+        .where('id', row.id)
+        .update({
+          content: JSON.stringify({ ...c, contentSid: result.sid, variableOrder: order }),
+          provider_template_id: result.sid,
+          approval_status: 'APPROVED',
+          updated_at: ctx.now(),
+        });
+      return toDto(await api.getRow(documentId));
+    },
+
+    /**
      * Builds Meta's component list (with required samples) and submits it.
      *
      * @param {string} documentId
@@ -335,6 +571,9 @@ function createTemplates(ctx, deps) {
                 ? { header_text_named_params: names.map((n) => ({ param_name: n, example: sample(n) })) }
                 : { header_text: names.map(sample) };
           }
+        }
+        if (['IMAGE', 'DOCUMENT', 'VIDEO'].includes(c.header.format)) {
+          header.example = { header_handle: [await sampleHandle(account, c.header)] };
         }
         components.push(header);
       }
@@ -366,7 +605,7 @@ function createTemplates(ctx, deps) {
           }),
         });
       }
-      const adapter = getAdapter('meta');
+      const adapter = ctx.adapter('meta');
       const result = await adapter.submitTemplate({
         config: deps.accounts.configOf(account),
         template: {
@@ -399,7 +638,7 @@ function createTemplates(ctx, deps) {
      * @returns {Promise<boolean>} Whether a template changed.
      */
     async applyProviderStatus(update) {
-      const status = getAdapter('meta').TEMPLATE_STATUSES.includes(update.status) ? update.status : null;
+      const status = ctx.adapter('meta').TEMPLATE_STATUSES.includes(update.status) ? update.status : null;
       if (!status) return false;
       const q = ctx.knex(T.templates).where({ channel: 'whatsapp' });
       if (update.id)
@@ -438,7 +677,7 @@ function createTemplates(ctx, deps) {
     async syncFromMeta(accountDocumentId) {
       const account = await deps.accounts.getRow(accountDocumentId);
       if (!account || account.provider !== 'meta') throw new MessageGateError('NO_ACCOUNT');
-      const remote = await getAdapter('meta').listTemplates({
+      const remote = await ctx.adapter('meta').listTemplates({
         config: deps.accounts.configOf(account),
         settings: ctx.config.providers.meta,
         fetchImpl: ctx.fetchImpl,
@@ -456,4 +695,4 @@ function createTemplates(ctx, deps) {
   return api;
 }
 
-module.exports = { createTemplates, templateSchema };
+module.exports = { createTemplates, templateSchema, needsContent };

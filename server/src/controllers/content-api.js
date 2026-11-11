@@ -42,7 +42,27 @@ function allowedCaller(ctx, config) {
   return Boolean(config?.contentApi?.allowUsersPermissions) && strategy === 'users-permissions';
 }
 
-module.exports = ({ strapi }) => {
+/**
+ * Shared per-caller rate limit; answers 429 when exceeded.
+ *
+ * @param {object} c - core
+ * @param {object} ctx
+ * @param {string} bucket
+ * @param {number} limit
+ * @returns {Promise<boolean>} true when the request was refused
+ */
+async function limited(c, ctx, bucket, limit) {
+  const hits = await hit(c.ctx.knex, `${bucket}:${principal(ctx)}`, 60_000, 1, c.ctx.now());
+  if (hits <= limit) return false;
+  ctx.set('Retry-After', '60');
+  sendError(ctx, 429, 'RATE_LIMITED', 'Too many requests, try again later');
+  return true;
+}
+
+/** @param {object} ctx */
+const bodyOf = (ctx) => ctx.request.body?.data ?? ctx.request.body ?? {};
+
+const factory = ({ strapi }) => {
   const core = () => coreFor(strapi);
 
   /**
@@ -71,12 +91,63 @@ module.exports = ({ strapi }) => {
       return handle(
         ctx,
         async () => {
-          const result = await c.sender.send(ctx.request.body?.data ?? ctx.request.body ?? {}, {
-            source: 'content-api',
-            keyScope: key,
-          });
+          const { dryRun, ...input } = bodyOf(ctx);
+          if (dryRun !== undefined && typeof dryRun !== 'boolean') {
+            throw new MessageGateError('INVALID_REQUEST', undefined, { field: 'dryRun' });
+          }
+          if (dryRun) {
+            ctx.status = 200;
+            return c.sender.preview(input);
+          }
+          const result = await c.sender.send(input, { source: 'content-api', keyScope: key });
           ctx.status = result.duplicate ? 200 : 202;
           return result;
+        },
+        strapi
+      );
+    },
+
+    /** POST /api/magic-messagegate/capabilities */
+    async capabilities(ctx) {
+      if (refuse(ctx)) return undefined;
+      const c = core();
+      if (await limited(c, ctx, 'lookup', c.ctx.config.rateLimits.lookupPerMinute)) return undefined;
+      return handle(
+        ctx,
+        async () => {
+          const body = z
+            .object({ phone: z.string().max(40) })
+            .strict()
+            .parse(bodyOf(ctx));
+          return c.lookup.capabilities(body.phone);
+        },
+        strapi
+      );
+    },
+
+    /** POST /api/magic-messagegate/templates/render */
+    async renderTemplate(ctx) {
+      if (refuse(ctx)) return undefined;
+      const c = core();
+      if (await limited(c, ctx, 'send', c.ctx.config.rateLimits.sendPerMinute)) return undefined;
+      return handle(
+        ctx,
+        async () => {
+          const body = z
+            .object({
+              template: z.string().regex(/^[a-z][a-z0-9_]{0,119}$/),
+              language: z
+                .string()
+                .regex(/^[a-z]{2,3}(_[A-Z]{2})?$/)
+                .optional(),
+              channel: z.enum(['whatsapp', 'rcs', 'telegram', 'sms']),
+              variables: z
+                .record(z.string().max(60), z.union([z.string().max(1024), z.number(), z.boolean()]))
+                .optional(),
+            })
+            .strict()
+            .parse(bodyOf(ctx));
+          return c.templates.render(body.template, body.language, body.variables || {}, body.channel);
         },
         strapi
       );
@@ -117,7 +188,7 @@ module.exports = ({ strapi }) => {
           const body = z
             .object({
               phone: z.string().max(40),
-              channel: z.enum(['whatsapp', 'telegram', 'sms']),
+              channel: z.enum(['whatsapp', 'rcs', 'telegram', 'sms']),
               status: z.enum(['granted', 'revoked']),
               userId: z.number().int().positive().optional(),
             })
@@ -160,19 +231,32 @@ module.exports = ({ strapi }) => {
       if (refuse(ctx)) return undefined;
       const c = core();
       const hits = await hit(c.ctx.knex, `lookup:${principal(ctx)}`, 60_000, 1, c.ctx.now());
-      if (hits > c.ctx.config.rateLimits.lookupPerMinute)
+      if (hits > c.ctx.config.rateLimits.lookupPerMinute) {
+        ctx.set('Retry-After', '60');
         return sendError(ctx, 429, 'RATE_LIMITED', 'Too many requests, try again later');
+      }
       return handle(
         ctx,
         async () => {
           const body = z
-            .object({ phone: z.string().max(40) })
+            .object({
+              phone: z.string().max(40),
+              remote: z.boolean().optional(),
+              hlr: z.boolean().optional(),
+              rcs: z.boolean().optional(),
+            })
             .strict()
-            .parse(ctx.request.body?.data ?? ctx.request.body ?? {});
-          return c.lookup.check(body.phone);
+            .parse(bodyOf(ctx));
+          return c.lookup.check(body.phone, { remote: body.remote !== false, hlr: body.hlr, rcs: body.rcs });
         },
         strapi
       );
     },
   };
 };
+
+module.exports = factory;
+module.exports.principal = principal;
+module.exports.allowedCaller = allowedCaller;
+module.exports.limited = limited;
+module.exports.bodyOf = bodyOf;

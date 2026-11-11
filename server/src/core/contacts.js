@@ -16,7 +16,9 @@ const { newId } = require('./context');
 
 const PHONE = 'contact-phone';
 const TELEGRAM = 'contact-telegram';
-const CHANNELS = ['whatsapp', 'telegram', 'sms'];
+const CHANNELS = ['whatsapp', 'rcs', 'telegram', 'sms'];
+/** A learned "not RCS capable" is trusted for this long (devices change). */
+const RCS_NOT_CAPABLE_MS = 30 * 86_400_000;
 
 /**
  * @param {import('./context').CoreContext} ctx
@@ -45,6 +47,14 @@ function createContacts(ctx) {
       whatsapp: {
         reachability: row.wa_reachability,
         since: row.wa_reachability_at ? Number(row.wa_reachability_at) : null,
+      },
+      rcs: {
+        capability: row.rcs_capability || 'unknown',
+        since: row.rcs_capability_at ? Number(row.rcs_capability_at) : null,
+      },
+      line: {
+        active: row.line_active === 'active' ? true : row.line_active === 'inactive' ? false : null,
+        checkedAt: row.line_checked_at ? Number(row.line_checked_at) : null,
       },
       lastActivity: {
         inboundAt: row.last_inbound_at ? Number(row.last_inbound_at) : null,
@@ -168,6 +178,16 @@ function createContacts(ctx) {
       if (!parsed.valid) return null;
       const row = await ctx.knex(T.contacts).where('phone_hash', phoneHash(parsed.e164)).first('id');
       return row ? row.id : null;
+    },
+
+    /**
+     * Contact for an E.164 number without creating one.
+     *
+     * @param {string} e164
+     * @returns {Promise<object|null>}
+     */
+    async getRowByPhone(e164) {
+      return (await ctx.knex(T.contacts).where('phone_hash', phoneHash(e164)).first()) || null;
     },
 
     async getRowById(id) {
@@ -311,6 +331,50 @@ function createContacts(ctx) {
         .update({ wa_reachability: state, wa_reachability_at: ctx.now(), updated_at: ctx.now() });
       if (state === 'unreachable' && affected(result) === 1)
         ctx.emit('messagegate.contact.unreachable', { channel: 'whatsapp', at: ctx.now() });
+    },
+
+    /**
+     * Learned RCS capability (TWILIO_63036 → not_capable, RCS delivery → capable).
+     *
+     * @param {number} contactId
+     * @param {'capable'|'not_capable'|'unknown'} state
+     * @returns {Promise<void>}
+     */
+    async setRcsCapability(contactId, state) {
+      await ctx
+        .knex(T.contacts)
+        .where('id', contactId)
+        .update({ rcs_capability: state, rcs_capability_at: ctx.now(), updated_at: ctx.now() });
+    },
+
+    /**
+     * Whether RCS should be skipped for this contact right now.
+     *
+     * @param {object} row
+     * @returns {boolean}
+     */
+    rcsKnownNotCapable(row) {
+      return (
+        row?.rcs_capability === 'not_capable' && ctx.now() - Number(row.rcs_capability_at || 0) < RCS_NOT_CAPABLE_MS
+      );
+    },
+
+    /**
+     * Stores the HLR result on the contact for the admin list.
+     *
+     * @param {string} hash - Phone hash.
+     * @param {boolean|null} active
+     * @param {number} at
+     * @returns {Promise<void>}
+     */
+    async setLineActive(hash, active, at) {
+      await ctx
+        .knex(T.contacts)
+        .where('phone_hash', hash)
+        .update({
+          line_active: active === true ? 'active' : active === false ? 'inactive' : 'unknown',
+          line_checked_at: at,
+        });
     },
 
     /**

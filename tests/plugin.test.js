@@ -35,7 +35,7 @@ test('routes: every admin route needs an admin session and a registered RBAC act
   }
   assert.equal(used.size, known.size, 'every RBAC action is used by a route');
   for (const route of plugin.routes['content-api'].routes) {
-    if (route.config.auth === false) assert.match(route.path, /^\/webhooks\/:provider\/:path$/);
+    if (route.config.auth === false) assert.match(route.path, /^\/webhooks\/:provider\/:path$|^\/files\/:token$/);
   }
 });
 

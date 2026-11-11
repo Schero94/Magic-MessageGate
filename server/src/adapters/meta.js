@@ -13,8 +13,28 @@
  *   IN_APPEAL, PENDING, REJECTED, PENDING_DELETION, DELETED, DISABLED,
  *   PAUSED, LIMIT_EXCEEDED, ARCHIVED.
  * - Error codes: https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes
+ *
+ * Media (read 2026-11-11):
+ * - Document/image/video messages: `type` plus `{ link, caption, filename }`
+ *   https://developers.facebook.com/docs/whatsapp/cloud-api/messages/document-messages
+ * - Template header media at send time: `{type: 'header', parameters: [{type:
+ *   'image'|'video'|'document', image|video|document: {link|id}}]}`
+ *   https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-media.md
+ * - Templates with an IMAGE/VIDEO/DOCUMENT header need `example.header_handle`
+ *   from the Resumable Upload API (POST /{app-id}/uploads, then POST
+ *   /upload:<id> with `Authorization: OAuth <token>` and `file_offset: 0`,
+ *   answer `{ h }`): https://developers.facebook.com/docs/graph-api/guides/upload
+ *   and .../whatsapp/templates/components.md
  */
 const { request } = require('./http');
+const { fetchLimited, onHost } = require('../utils/download');
+
+/**
+ * Hosts a media URL from GET /{media-id} may point to. Meta documents only
+ * that the URL needs the access token and expires after 5 minutes; the host
+ * is not documented, so the Meta CDN domains are allowed and nothing else.
+ */
+const MEDIA_HOSTS = [/(^|\.)fbsbx\.com$/, /(^|\.)fbcdn\.net$/, /(^|\.)whatsapp\.net$/, /(^|\.)facebook\.com$/];
 
 const DEFAULT_BASE = 'https://graph.facebook.com';
 const DEFAULT_VERSION = 'v23.0';
@@ -84,6 +104,33 @@ function classify(res) {
  * @returns {object}
  */
 function buildBody(to, payload) {
+  if (payload.kind === 'media') {
+    const media = { link: payload.link };
+    if (payload.caption) media.caption = payload.caption;
+    if (payload.mediaType === 'document' && payload.filename) media.filename = payload.filename;
+    return {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: payload.mediaType,
+      [payload.mediaType]: media,
+    };
+  }
+  if (payload.kind === 'buttons') {
+    // Interactive reply buttons (session messages, max 3, title ≤ 20, id ≤ 256):
+    // https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-reply-buttons-messages
+    return {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: payload.text },
+        action: { buttons: payload.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })) },
+      },
+    };
+  }
   if (payload.kind === 'text') {
     return {
       messaging_product: 'whatsapp',
@@ -207,6 +254,88 @@ module.exports = {
     });
     if (res.outcome !== 'accepted') return { ok: false, id: null, status: null, code: classify(res).code };
     return { ok: true, id: String(res.json?.id || ''), status: res.json?.status || 'PENDING', code: null };
+  },
+
+  /**
+   * Uploads a template sample with the Resumable Upload API and returns the
+   * file handle for `example.header_handle`.
+   *
+   * @param {{appId: string, accessToken: string, bytes: Buffer, fileName: string, mimeType: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, handle: string|null, code: string|null}>}
+   */
+  async uploadSample({ appId, accessToken, bytes, fileName, mimeType, settings = {}, fetchImpl }) {
+    const base = settings.baseUrl || DEFAULT_BASE;
+    const version = settings.graphVersion || DEFAULT_VERSION;
+    const query = new URLSearchParams({
+      file_name: fileName,
+      file_length: String(bytes.length),
+      file_type: mimeType,
+    });
+    const session = await request({
+      url: `${base}/${version}/${encodeURIComponent(appId)}/uploads?${query}`,
+      headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    const id = session.json?.id;
+    if (session.outcome !== 'accepted' || typeof id !== 'string' || !/^upload:[A-Za-z0-9_=:.-]{1,400}$/.test(id)) {
+      return {
+        ok: false,
+        handle: null,
+        code: session.outcome === 'accepted' ? 'NO_UPLOAD_ID' : classify(session).code,
+      };
+    }
+    const upload = await request({
+      url: `${base}/${version}/${id}`,
+      headers: { authorization: `OAuth ${accessToken}`, file_offset: '0', accept: 'application/json' },
+      body: bytes,
+      timeoutMs: 60_000,
+      fetchImpl,
+    });
+    const handle = upload.json?.h;
+    if (upload.outcome !== 'accepted' || typeof handle !== 'string' || !handle) {
+      return { ok: false, handle: null, code: upload.outcome === 'accepted' ? 'NO_HANDLE' : classify(upload).code };
+    }
+    return { ok: true, handle, code: null };
+  },
+
+  /**
+   * Downloads inbound media: GET /{media-id} for a fresh URL (valid 5
+   * minutes), then the file with the access token. Media ids from webhooks
+   * expire after 7 days.
+   * https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
+   *
+   * @param {{config: object, ref: {id: string}, maxBytes: number, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, bytes?: Buffer, mime?: string|null, code: string|null}>}
+   */
+  async downloadMedia({ config, ref, maxBytes, settings, fetchImpl }) {
+    if (!/^\d{1,40}$/.test(String(ref?.id || ''))) return { ok: false, code: 'MEDIA_REF_INVALID' };
+    const { base, version, headers } = endpoint(config, settings);
+    const info = await request({
+      url: `${base}/${version}/${ref.id}`,
+      method: 'GET',
+      headers,
+      timeoutMs: 15_000,
+      fetchImpl,
+    });
+    if (info.outcome !== 'accepted') {
+      return { ok: false, code: info.status === 404 || info.status === 400 ? 'MEDIA_EXPIRED' : 'MEDIA_FETCH_FAILED' };
+    }
+    const size = Number(info.json?.file_size);
+    if (Number.isFinite(size) && size > maxBytes) return { ok: false, code: 'MEDIA_TOO_LARGE' };
+    const url = info.json?.url;
+    if (!onHost(url, MEDIA_HOSTS, settings?.baseUrl)) return { ok: false, code: 'MEDIA_HOST_REFUSED' };
+    const file = await fetchLimited({
+      url,
+      headers: { authorization: `Bearer ${config.accessToken}` },
+      maxBytes,
+      fetchImpl,
+    });
+    if (!file.ok) {
+      const code = { TOO_LARGE: 'MEDIA_TOO_LARGE', EXPIRED: 'MEDIA_EXPIRED' }[file.code] || 'MEDIA_FETCH_FAILED';
+      return { ok: false, code };
+    }
+    return { ok: true, bytes: file.bytes, mime: info.json?.mime_type || null, code: null };
   },
 
   /*

@@ -35,6 +35,18 @@ const CODES = Object.freeze({
   INVALID_SIGNATURE: { status: 401, message: 'Unauthorized' },
   CONFIG_INVALID: { status: 400, message: 'The configuration is invalid' },
   EMBEDDED_SIGNUP_DISABLED: { status: 409, message: 'Meta Embedded Signup is not configured on the server' },
+  NUMBER_INACTIVE: { status: 409, message: 'The number is not assigned to a subscriber (HLR check)' },
+  RCS_NOT_CAPABLE: { status: 409, message: 'The number cannot receive RCS messages' },
+  ATTACHMENT_NOT_FOUND: { status: 404, message: 'The attachment file does not exist' },
+  ATTACHMENT_TYPE_NOT_ALLOWED: { status: 400, message: 'This file type cannot be sent' },
+  ATTACHMENT_TYPE_MISMATCH: { status: 400, message: 'The file content does not match its type or name' },
+  ATTACHMENT_URL_INVALID: { status: 400, message: 'The attachment URL is not a public https URL' },
+  ATTACHMENT_TOO_LARGE: { status: 400, message: 'The file is larger than the channel allows' },
+  ATTACHMENT_UNSUPPORTED: { status: 409, message: 'No channel in the chain can carry this attachment' },
+  MEDIA_NOT_READY: { status: 409, message: 'The media file is not available (pending, quarantined or failed)' },
+  MEDIA_NOT_STORED: { status: 409, message: 'The media file was not stored (inboundMedia.storage is none)' },
+  SANDBOX_ONLY: { status: 403, message: 'Only available when providers.mode is sandbox' },
+  WEBHOOK_URL_INVALID: { status: 400, message: 'The webhook URL must be a public https URL' },
 });
 
 class MessageGateError extends Error {

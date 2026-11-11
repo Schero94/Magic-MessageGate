@@ -15,6 +15,23 @@
 const http = require('http');
 
 const ROUTES = [
+  ['meta.media', 'GET', /^\/meta\/v\d+\.\d\/(9\d{6})$/],
+  ['meta.mediaFile', 'GET', /^\/meta-cdn\/([A-Za-z0-9_-]+)$/],
+  ['meta.uploadSession', 'POST', /^\/meta\/v\d+\.\d\/(\d+)\/uploads$/],
+  ['meta.upload', 'POST', /^\/meta\/v\d+\.\d\/(upload:[A-Za-z0-9_=:.-]+)$/],
+  ['telegram.sendPhoto', 'POST', /^\/telegram\/bot[^/]+\/sendPhoto$/],
+  ['telegram.sendDocument', 'POST', /^\/telegram\/bot[^/]+\/sendDocument$/],
+  ['telegram.getFile', 'POST', /^\/telegram\/bot[^/]+\/getFile$/],
+  ['telegram.answerCallback', 'POST', /^\/telegram\/bot[^/]+\/answerCallbackQuery$/],
+  ['telegram.file', 'GET', /^\/telegram\/file\/bot[^/]+\/(.+)$/],
+  ['seven.hlr', 'GET', /^\/seven\/api\/lookup\/hlr$/],
+  ['twilio.content', 'POST', /^\/content\/v1\/Content$/],
+  [
+    'twilio.media',
+    'GET',
+    /^\/twilio\/2010-04-01\/Accounts\/AC[0-9a-f]{32}\/Messages\/MM[0-9a-f]{32}\/Media\/(ME[0-9a-f]{32})$/,
+  ],
+  ['twilio.cdn', 'GET', /^\/twilio-cdn\/([A-Za-z0-9_-]+)$/],
   ['meta.send', 'POST', /^\/meta\/v\d+\.\d\/(\d+)\/messages$/],
   ['meta.info', 'GET', /^\/meta\/v\d+\.\d\/(\d+)$/],
   ['meta.templates', 'GET', /^\/meta\/v\d+\.\d\/(\d+)\/message_templates$/],
@@ -37,8 +54,66 @@ const ROUTES = [
 let counter = 0;
 const hex = (n) => n.toString(16).padStart(32, '0');
 
+/** Small valid files for media downloads. */
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
+const JPEG_WITH_EXIF = Buffer.concat([
+  Buffer.from([0xff, 0xd8]),
+  Buffer.from([0xff, 0xe1, 0x00, 0x0d]),
+  Buffer.from('Exif\u0000\u0000GPS!!', 'latin1'),
+  Buffer.from([0xff, 0xdb, 0x00, 0x04, 0x00, 0x00]),
+  Buffer.from([0xff, 0xda, 0x00, 0x02, 0x11, 0x22]),
+  Buffer.from([0xff, 0xd9]),
+]);
+
 /** Default (successful) answers, shaped like the providers' documentation. */
 const DEFAULTS = {
+  'meta.media': (req) => ({
+    status: 200,
+    json: {
+      messaging_product: 'whatsapp',
+      url: `http://${req.headers.host}/meta-cdn/${req.match[1]}`,
+      mime_type: 'image/jpeg',
+      sha256: 'x',
+      file_size: JPEG_WITH_EXIF.length,
+      id: req.match[1],
+    },
+  }),
+  'meta.mediaFile': () => ({ status: 200, body: JPEG_WITH_EXIF, type: 'image/jpeg' }),
+  'meta.uploadSession': () => ({ status: 200, json: { id: 'upload:MTphdHRhY2htZW50' } }),
+  'meta.upload': () => ({ status: 200, json: { h: '4::aW1hZ2UvanBlZw==:ARZ' } }),
+  'telegram.sendPhoto': () => ({ status: 200, json: { ok: true, result: { message_id: ++counter } } }),
+  'telegram.sendDocument': () => ({ status: 200, json: { ok: true, result: { message_id: ++counter } } }),
+  'telegram.getFile': (req) => ({
+    status: 200,
+    json: { ok: true, result: { file_id: req.json?.file_id, file_path: 'photos/file_1.png', file_size: PNG.length } },
+  }),
+  'telegram.answerCallback': () => ({ status: 200, json: { ok: true, result: true } }),
+  'telegram.file': () => ({ status: 200, body: PNG, type: 'image/png' }),
+  'seven.hlr': (req) => {
+    const number = new URL(`http://x${req.url}`).searchParams.get('number');
+    const inactive = number === '4915550000008';
+    return {
+      status: 200,
+      json: {
+        status: true,
+        status_message: 'success',
+        lookup_outcome: true,
+        international_format_number: number,
+        valid_number: inactive ? 'not_valid' : 'valid',
+        reachable: inactive ? 'bad_number' : 'reachable',
+        ported: 'assumed_not_ported',
+        roaming: 'not_roaming',
+        current_carrier: { network_code: '26203', name: 'Synthetic Mobile', country: 'DE', network_type: 'mobile' },
+      },
+    };
+  },
+  'twilio.content': () => ({ status: 201, json: { sid: `HX${hex(++counter)}` } }),
+  'twilio.media': (req) => ({
+    status: 302,
+    headers: { location: `http://${req.headers.host}/twilio-cdn/${req.match[1]}` },
+    json: undefined,
+  }),
+  'twilio.cdn': () => ({ status: 200, body: PNG, type: 'image/png' }),
   'meta.send': (req) => ({
     status: 200,
     json: {
@@ -151,6 +226,15 @@ async function startFakeProviders() {
         return;
       }
       const reply = () => {
+        if (answer.body) {
+          res.writeHead(answer.status, {
+            'content-type': answer.type || 'application/octet-stream',
+            'content-length': String(answer.body.length),
+            ...(answer.headers || {}),
+          });
+          res.end(answer.body);
+          return;
+        }
         res.writeHead(answer.status, { 'content-type': 'application/json', ...(answer.headers || {}) });
         res.end(answer.json === undefined ? '' : JSON.stringify(answer.json));
       };
@@ -172,7 +256,12 @@ async function startFakeProviders() {
       meta: { baseUrl: `${url}/meta`, timeoutMs: 1500 },
       telegram: { baseUrl: `${url}/telegram`, timeoutMs: 1500 },
       seven: { baseUrl: `${url}/seven`, timeoutMs: 1500 },
-      twilio: { baseUrl: `${url}/twilio`, lookupBaseUrl: `${url}/lookup`, timeoutMs: 1500 },
+      twilio: {
+        baseUrl: `${url}/twilio`,
+        lookupBaseUrl: `${url}/lookup`,
+        contentBaseUrl: `${url}/content`,
+        timeoutMs: 1500,
+      },
     },
     /** @param {string} route @param {object} answer */
     queue(route, answer) {
@@ -200,4 +289,4 @@ async function startFakeProviders() {
   };
 }
 
-module.exports = { startFakeProviders };
+module.exports = { startFakeProviders, PNG, JPEG_WITH_EXIF };

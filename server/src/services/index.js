@@ -7,6 +7,8 @@
  *   strapi.plugin('magic-messagegate').service('messages').send({ … })
  */
 const { createCore } = require('../core');
+const { createFiles } = require('./files');
+const { SANDBOX_NUMBERS } = require('../testing/numbers');
 
 const PLUGIN = 'magic-messagegate';
 /** @type {WeakMap<object, object>} */
@@ -42,6 +44,7 @@ function coreFor(strapi) {
         },
         publicUrl: config.publicUrl || strapi.config.get('server.url') || '',
         magicMail,
+        files: strapi.db?.query ? createFiles(strapi) : null,
       })
     );
   }
@@ -59,10 +62,26 @@ module.exports = {
      * Queues a message. See AGENTS.md for the full contract.
      *
      * @param {object} input
-     * @param {{source?: string}} [options]
-     * @returns {Promise<{id: string|null, status: string, channel: string, duplicate: boolean}>}
+     * @param {{source?: string, dryRun?: boolean}} [options] - `dryRun: true` plans without sending (see `preview`).
+     * @returns {Promise<{id: string|null, status: string, channel: string, duplicate: boolean}|object>}
      */
     send: (input, options) => coreFor(strapi).sender.send(input, { source: 'service', ...options }),
+    /**
+     * Dry run: route, account, rendered payload (phone masked) and errors, without sending or cost.
+     *
+     * @param {object} input
+     * @returns {Promise<object>}
+     */
+    preview: (input) => coreFor(strapi).sender.preview(input),
+    /**
+     * Answers an inbound message on its channel and account.
+     *
+     * @param {string} inboundId
+     * @param {object} input - `text` | `template` + `variables`, `buttons`, `attachment`, `idempotencyKey`
+     * @param {{dryRun?: boolean}} [options]
+     * @returns {Promise<object>}
+     */
+    reply: (inboundId, input, options) => coreFor(strapi).reply(inboundId, input, { source: 'reply', ...options }),
     /** @param {string} id */
     get: (id) => coreFor(strapi).outbox.detail(id),
     /** @param {object} query */
@@ -130,8 +149,100 @@ module.exports = {
   }),
 
   lookup: ({ strapi }) => ({
-    /** @param {string} phone */
-    check: (phone) => coreFor(strapi).lookup.check(phone),
+    /**
+     * Number check: free format check; `remote` (Twilio line type, default on
+     * when configured), `hlr` (seven.io HLR, paid), `rcs` (learned RCS capability).
+     *
+     * @param {string} phone
+     * @param {{remote?: boolean, hlr?: boolean, rcs?: boolean}} [options]
+     */
+    check: (phone, options) => coreFor(strapi).lookup.check(phone, options),
+    /**
+     * What is known about a number without any paid call.
+     *
+     * @param {string} phone
+     * @returns {Promise<{valid: boolean, e164: string|null, type: string|null, active: boolean|null, whatsapp: string, rcs: string, telegramLinked: boolean, checkedAt: number|null}>}
+     */
+    capabilities: (phone) => coreFor(strapi).lookup.capabilities(phone),
+  }),
+
+  templates: ({ strapi }) => ({
+    /**
+     * Renders the active template without sending.
+     *
+     * @param {string} key
+     * @param {string|undefined} language
+     * @param {Record<string, unknown>} variables
+     * @param {'whatsapp'|'rcs'|'telegram'|'sms'} channel
+     */
+    render: (key, language, variables, channel) => coreFor(strapi).templates.render(key, language, variables, channel),
+  }),
+
+  inbound: ({ strapi }) => ({
+    /** @param {string} id */
+    get: (id) => coreFor(strapi).inbound.get(id),
+    /** @param {object} [query] */
+    list: (query) => coreFor(strapi).inbound.list(query),
+    /** @param {string} id */
+    markProcessed: (id) => coreFor(strapi).inbound.markProcessed(id),
+    /**
+     * @param {string} id
+     * @param {{as?: 'buffer'|'stream'|'base64'}} [options]
+     */
+    getMedia: (id, options) => coreFor(strapi).inbound.getMedia(id, options),
+    /**
+     * @param {string} id
+     * @param {{ttlSeconds?: number}} [options]
+     */
+    createMediaUrl: (id, options) => coreFor(strapi).inbound.createMediaUrl(id, options),
+    /**
+     * Subscribes to `messagegate.message.received` (emitted once across processes).
+     *
+     * @param {(event: object) => void|Promise<void>} handler
+     * @returns {() => void} unsubscribe
+     */
+    onReceived(handler) {
+      return strapi.eventHub.on('messagegate.message.received', handler);
+    },
+    /**
+     * Registers a virus scanner for inbound media (per process; register it in every process).
+     *
+     * @param {(file: {bytes: Buffer, mime: string, size: number, filename: string, inboundId: string}) => Promise<'clean'|'infected'>} fn
+     */
+    onMediaScan: (fn) => coreFor(strapi).inbound.onMediaScan(fn),
+  }),
+
+  conversations: ({ strapi }) => ({
+    /**
+     * @param {string|{inboundId: string}} ref - contact id or `{ inboundId }`
+     * @param {{limit?: number, since?: number, includeMedia?: boolean}} [options]
+     */
+    history: (ref, options) => coreFor(strapi).inbound.history(ref, options),
+  }),
+
+  sandbox: ({ strapi }) => ({
+    /** Magic test numbers (see AGENTS.md "Sandbox"). */
+    numbers: SANDBOX_NUMBERS,
+    /** @returns {boolean} */
+    enabled: () => coreFor(strapi).ctx.config.providers.mode === 'sandbox',
+    /** @param {object} input */
+    simulateInbound: (input) => coreFor(strapi).simulateInbound(input),
+    /**
+     * Runs worker rounds until nothing is due (tests).
+     *
+     * @param {{maxRounds?: number}} [options]
+     */
+    async drain({ maxRounds = 20 } = {}) {
+      const core = coreFor(strapi);
+      if (core.ctx.config.providers.mode !== 'sandbox')
+        throw Object.assign(new Error('SANDBOX_ONLY'), { code: 'SANDBOX_ONLY' });
+      for (let i = 0; i < maxRounds; i += 1) {
+        const { claimed } = await core.outbox.tick();
+        const media = await core.inbound.mediaTick();
+        if (!claimed && !media.length) return i;
+      }
+      return maxRounds;
+    },
   }),
 };
 

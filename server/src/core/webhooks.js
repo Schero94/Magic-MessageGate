@@ -19,7 +19,7 @@ const META_STATUS = { sent: 'sent', delivered: 'delivered', read: 'read', played
 
 /**
  * @param {import('./context').CoreContext} ctx
- * @param {{settings: object, accounts: object, templates: object, contacts: object, outbox: object}} deps
+ * @param {{settings: object, accounts: object, templates: object, contacts: object, outbox: object, inbound: object}} deps
  */
 function createWebhooks(ctx, deps) {
   /**
@@ -55,19 +55,93 @@ function createWebhooks(ctx, deps) {
   }
 
   /**
-   * @param {string} channel
-   * @param {string} phone - E.164 or digits
-   * @param {string} text
-   * @param {number} at
-   * @returns {Promise<void>}
+   * Stores an inbound message once, then updates last activity and handles
+   * opt-out keywords (only for new messages, so provider retries are no-ops).
+   *
+   * @param {object} input - see inbound.record; `contact` must be set
+   * @returns {Promise<object|null>} stored row or null (duplicate)
    */
-  async function inboundByPhone(channel, phone, text, at) {
+  async function receive(input) {
+    const row = await deps.inbound.record(input);
+    if (!row || !input.contact) return row;
+    await deps.contacts.touch(input.contact.id, 'inbound', input.at, input.channel);
+    if (input.text && (await isOptOut(input.text))) {
+      await deps.contacts.setConsent(input.contact.id, input.channel, 'revoked', 'keyword');
+    }
+    return row;
+  }
+
+  /**
+   * @param {string} phone - E.164 or digits
+   * @returns {Promise<object|null>} contact row
+   */
+  async function contactByPhone(phone) {
     const settings = await deps.settings.get();
-    const parsed = parsePhone(String(phone).startsWith('+') ? phone : `+${phone}`, settings.defaultCountry);
-    if (!parsed.valid) return;
-    const { row } = await deps.contacts.upsertByPhone(parsed.e164, { country: settings.defaultCountry });
-    await deps.contacts.touch(row.id, 'inbound', at, channel);
-    if (await isOptOut(text)) await deps.contacts.setConsent(row.id, channel, 'revoked', 'keyword');
+    const raw = String(phone || '').replace(/^(rcs|whatsapp|sms):/i, '');
+    const parsed = parsePhone(raw.startsWith('+') ? raw : `+${raw}`, settings.defaultCountry);
+    if (!parsed.valid) return null;
+    return (await deps.contacts.upsertByPhone(parsed.e164, { country: settings.defaultCountry })).row;
+  }
+
+  /**
+   * Maps a Cloud API inbound message to MessageGate fields.
+   * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages
+   *
+   * @param {object} m
+   * @returns {object}
+   */
+  function metaMessage(m) {
+    const out = { kind: 'other', replyProviderId: typeof m.context?.id === 'string' ? m.context.id : null };
+    if (m.type === 'text') Object.assign(out, { kind: 'text', text: m.text?.body });
+    else if (m.type === 'button') {
+      Object.assign(out, {
+        kind: 'button',
+        buttonPayload: m.button?.payload,
+        buttonTitle: m.button?.text,
+        text: m.button?.text,
+      });
+    } else if (m.type === 'interactive') {
+      const reply = m.interactive?.button_reply || m.interactive?.list_reply;
+      if (reply)
+        Object.assign(out, { kind: 'button', buttonPayload: reply.id, buttonTitle: reply.title, text: reply.title });
+    } else if (['image', 'video', 'document', 'audio', 'sticker'].includes(m.type)) {
+      const media = m[m.type] || {};
+      if (typeof media.id === 'string') {
+        Object.assign(out, {
+          kind: 'media',
+          media: {
+            ref: { id: media.id },
+            mime: media.mime_type,
+            filename: media.filename,
+            caption: media.caption,
+            voice: media.voice === true,
+          },
+        });
+      }
+    } else if (m.type === 'location' && Number.isFinite(Number(m.location?.latitude))) {
+      out.kind = 'location';
+      out.location = {
+        latitude: Number(m.location.latitude),
+        longitude: Number(m.location.longitude),
+        ...(m.location.name ? { name: String(m.location.name).slice(0, 200) } : {}),
+        ...(m.location.address ? { address: String(m.location.address).slice(0, 300) } : {}),
+      };
+    }
+    return out;
+  }
+
+  /**
+   * Finds the Meta account of a phone number id (app-level webhook URL).
+   *
+   * @param {string|undefined} phoneNumberId
+   * @returns {Promise<object|null>}
+   */
+  async function metaAccountFor(phoneNumberId) {
+    if (!phoneNumberId) return null;
+    for (const row of await deps.accounts.forChannel('whatsapp')) {
+      if (deps.accounts.configOf(row).phoneNumberId === String(phoneNumberId)) return row;
+    }
+    return null;
   }
 
   const api = {
@@ -132,16 +206,21 @@ function createWebhooks(ctx, deps) {
               });
             });
           }
-          for (const message of Array.isArray(value.messages) ? value.messages.slice(0, 100) : []) {
+          const messages = Array.isArray(value.messages) ? value.messages.slice(0, 100) : [];
+          const owner = messages.length ? account || (await metaAccountFor(value.metadata?.phone_number_id)) : null;
+          for (const message of messages) {
             if (typeof message?.id !== 'string' || typeof message?.from !== 'string') continue;
-            await once('meta', `in:${message.id}`, () =>
-              inboundByPhone(
-                'whatsapp',
-                message.from,
-                message.text?.body || message.button?.text || '',
-                Number(message.timestamp) * 1000 || ctx.now()
-              )
-            );
+            const contact = await contactByPhone(message.from);
+            if (!contact) continue;
+            await receive({
+              provider: 'meta',
+              providerMessageId: message.id,
+              channel: 'whatsapp',
+              contact,
+              account: owner,
+              at: Number(message.timestamp) * 1000 || ctx.now(),
+              ...metaMessage(message),
+            });
           }
         }
       }
@@ -159,26 +238,38 @@ function createWebhooks(ctx, deps) {
       const config = deps.accounts.configOf(account);
       if (!signatures.verifyTelegram(headers['x-telegram-bot-api-secret-token'], config.secretToken))
         return { status: 401 };
-      const message = body?.message;
-      if (!Number.isInteger(body?.update_id) || !message?.chat?.id || message.chat.type !== 'private')
+      if (!Number.isInteger(body?.update_id)) return { status: 200 };
+      if (body.callback_query) {
+        await telegramCallback(account, config, body.callback_query);
         return { status: 200 };
+      }
+      const message = body?.message;
+      if (!message?.chat?.id || message.chat.type !== 'private') return { status: 200 };
       const chatId = String(message.chat.id);
       const text = typeof message.text === 'string' ? message.text.slice(0, 4096) : '';
-      await once('telegram', `${account.id}:${body.update_id}`, async () => {
-        const at = Number(message.date) * 1000 || ctx.now();
-        const start = /^\/start(?:@\w+)?\s+([A-Za-z0-9_-]{16,64})$/.exec(text.trim());
-        if (start) {
+      const at = Number(message.date) * 1000 || ctx.now();
+      const start = /^\/start(?:@\w+)?\s+([A-Za-z0-9_-]{16,64})$/.exec(text.trim());
+      if (start) {
+        await once('telegram', `${account.id}:${body.update_id}`, async () => {
           const contact = await deps.contacts.consumeLinkToken(start[1], chatId);
           if (contact) await deps.contacts.touch(contact.id, 'inbound', at, 'telegram');
-          return;
-        }
-        const contact = await deps.contacts.byChatId(chatId);
-        if (!contact) return;
-        await deps.contacts.touch(contact.id, 'inbound', at, 'telegram');
-        if (text.trim().toLowerCase() === '/stop' || (await isOptOut(text))) {
-          await deps.contacts.setConsent(contact.id, 'telegram', 'revoked', 'keyword');
-        }
+        });
+        return { status: 200 };
+      }
+      const contact = await deps.contacts.byChatId(chatId);
+      if (!contact) return { status: 200 };
+      const row = await receive({
+        provider: 'telegram',
+        providerMessageId: `${account.id}:${chatId}:${message.message_id}`,
+        channel: 'telegram',
+        contact,
+        account,
+        at,
+        ...telegramMessage(message, chatId),
       });
+      if (row && text.trim().toLowerCase() === '/stop') {
+        await deps.contacts.setConsent(contact.id, 'telegram', 'revoked', 'keyword');
+      }
       return { status: 200 };
     },
 
@@ -203,7 +294,7 @@ function createWebhooks(ctx, deps) {
       // Replay protection: a nonce is accepted once inside the 30 s window.
       if (!(await claimOnce(ctx.knex, 'seven-nonce', check.nonce, ctx.now()))) return { status: 200 };
       try {
-        await sevenEvent(body);
+        await sevenEvent(account, body);
       } catch (error) {
         await unclaim(ctx.knex, 'seven-nonce', check.nonce);
         throw error;
@@ -225,10 +316,11 @@ function createWebhooks(ctx, deps) {
   return api;
 
   /**
+   * @param {object} account
    * @param {any} body - verified seven.io webhook body
    * @returns {Promise<void>}
    */
-  async function sevenEvent(body) {
+  async function sevenEvent(account, body) {
     const event = body?.webhook_event;
     const data = body?.data || {};
     if (event === 'dlr' && data.msg_id && typeof data.status === 'string') {
@@ -244,9 +336,107 @@ function createWebhooks(ctx, deps) {
         });
       }
     } else if (event === 'sms_mo' && data.sender && data.id) {
-      await once('seven', `mo:${data.id}`, () =>
-        inboundByPhone('sms', String(data.sender), String(data.text || ''), ctx.now())
-      );
+      const contact = await contactByPhone(String(data.sender));
+      if (!contact) return;
+      await receive({
+        provider: 'seven',
+        providerMessageId: `mo:${data.id}`,
+        channel: 'sms',
+        contact,
+        account,
+        kind: 'text',
+        text: String(data.text || '').slice(0, 4096),
+        at: Date.parse(String(data.time || '').replace(' ', 'T')) || ctx.now(),
+      });
+    }
+  }
+
+  /**
+   * Maps a Telegram Message to MessageGate fields.
+   * https://core.telegram.org/bots/api#message
+   *
+   * @param {object} m
+   * @param {string} chatId
+   * @returns {object}
+   */
+  function telegramMessage(m, chatId) {
+    const out = {
+      kind: 'other',
+      replyProviderId: m.reply_to_message?.message_id ? `${chatId}:${m.reply_to_message.message_id}` : null,
+    };
+    const caption = typeof m.caption === 'string' ? m.caption : undefined;
+    const media = (file, mime, extra = {}) => ({
+      kind: 'media',
+      text: caption,
+      media: {
+        ref: { id: file.file_id },
+        mime: file.mime_type || mime,
+        filename: file.file_name,
+        caption,
+        size: file.file_size,
+        ...extra,
+      },
+    });
+    if (typeof m.text === 'string') Object.assign(out, { kind: 'text', text: m.text });
+    else if (Array.isArray(m.photo) && m.photo.length) {
+      const largest = [...m.photo].sort((a, b) => Number(b.file_size || 0) - Number(a.file_size || 0))[0];
+      Object.assign(out, media(largest, 'image/jpeg'));
+    } else if (m.voice) Object.assign(out, media(m.voice, 'audio/ogg', { duration: m.voice.duration, voice: true }));
+    else if (m.audio) Object.assign(out, media(m.audio, 'audio/mpeg', { duration: m.audio.duration }));
+    else if (m.video) Object.assign(out, media(m.video, 'video/mp4', { duration: m.video.duration }));
+    else if (m.document) Object.assign(out, media(m.document, 'application/octet-stream'));
+    else if (m.sticker) {
+      const animated = m.sticker.is_animated || m.sticker.is_video;
+      Object.assign(out, media(m.sticker, animated ? 'application/x-tgsticker' : 'image/webp'));
+    } else if (m.location || m.venue?.location) {
+      const loc = m.location || m.venue.location;
+      out.kind = 'location';
+      out.location = {
+        latitude: Number(loc.latitude),
+        longitude: Number(loc.longitude),
+        ...(m.venue?.title ? { name: String(m.venue.title).slice(0, 200) } : {}),
+        ...(m.venue?.address ? { address: String(m.venue.address).slice(0, 300) } : {}),
+      };
+    }
+    return out;
+  }
+
+  /**
+   * Inline keyboard press: answer the callback query (the client shows a
+   * spinner until then) and store the button payload.
+   *
+   * @param {object} account
+   * @param {object} config
+   * @param {object} query - CallbackQuery
+   * @returns {Promise<void>}
+   */
+  async function telegramCallback(account, config, query) {
+    if (typeof query?.id !== 'string' || !query.from?.id) return;
+    const chatId = String(query.message?.chat?.id || query.from.id);
+    const contact = await deps.contacts.byChatId(chatId);
+    const row = contact
+      ? await receive({
+          provider: 'telegram',
+          providerMessageId: `cb:${query.id}`,
+          channel: 'telegram',
+          contact,
+          account,
+          kind: 'button',
+          buttonPayload: typeof query.data === 'string' ? query.data.slice(0, 64) : null,
+          replyProviderId: query.message?.message_id ? `${chatId}:${query.message.message_id}` : null,
+          at: ctx.now(),
+        })
+      : null;
+    if (row || !contact) {
+      await ctx
+        .adapter('telegram')
+        .answerCallback({
+          config,
+          callbackQueryId: query.id,
+          settings: ctx.config.providers.telegram,
+          fetchImpl: ctx.fetchImpl,
+        })
+        .catch(() => {});
     }
   }
 
@@ -275,11 +465,61 @@ function createWebhooks(ctx, deps) {
       }
       if (status !== 'received') return { status: 200 };
     }
-    if (params.From && typeof params.Body === 'string') {
-      await once('twilio', `in:${sid}`, () => inboundByPhone('sms', String(params.From), params.Body, ctx.now()));
+    if (params.From && (typeof params.Body === 'string' || Number(params.NumMedia) > 0)) {
+      const from = String(params.From);
+      if (/^whatsapp:/i.test(from)) return { status: 200 };
+      const contact = await contactByPhone(from);
+      if (!contact) return { status: 200 };
+      await receive({
+        provider: 'twilio',
+        providerMessageId: sid,
+        channel: /^rcs:/i.test(from) || account.channel === 'rcs' ? 'rcs' : 'sms',
+        contact,
+        account,
+        at: ctx.now(),
+        ...twilioMessage(params),
+      });
     }
     return { status: 200 };
   }
 }
 
-module.exports = { createWebhooks, META_STATUS };
+/**
+ * Maps Twilio inbound webhook parameters (SMS, MMS, RCS) to MessageGate fields.
+ * https://www.twilio.com/docs/messaging/guides/webhook-request
+ *
+ * @param {Record<string,string>} p
+ * @returns {object}
+ */
+function twilioMessage(p) {
+  const out = {
+    kind: 'text',
+    text: typeof p.Body === 'string' ? p.Body.slice(0, 4096) : '',
+    replyProviderId: /^(SM|MM)[0-9a-f]{32}$/.test(String(p.OriginalRepliedMessageSid || ''))
+      ? p.OriginalRepliedMessageSid
+      : null,
+  };
+  if (p.ButtonPayload) {
+    Object.assign(out, {
+      kind: 'button',
+      buttonPayload: String(p.ButtonPayload).slice(0, 256),
+      buttonTitle: p.ButtonText,
+    });
+  } else if (Number(p.NumMedia) > 0 && p.MediaUrl0) {
+    Object.assign(out, {
+      kind: 'media',
+      media: { ref: { url: String(p.MediaUrl0) }, mime: p.MediaContentType0, caption: out.text || undefined },
+    });
+  } else if (p.Latitude && p.Longitude && Number.isFinite(Number(p.Latitude))) {
+    out.kind = 'location';
+    out.location = {
+      latitude: Number(p.Latitude),
+      longitude: Number(p.Longitude),
+      ...(p.Label ? { name: String(p.Label).slice(0, 200) } : {}),
+      ...(p.Address ? { address: String(p.Address).slice(0, 300) } : {}),
+    };
+  }
+  return out;
+}
+
+module.exports = { createWebhooks, META_STATUS, twilioMessage };

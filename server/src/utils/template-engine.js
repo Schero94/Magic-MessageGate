@@ -46,7 +46,7 @@ function placeholders(text, format) {
 function templateVariables(template) {
   const format = template.parameterFormat === 'positional' ? 'positional' : 'named';
   const c = template.content || {};
-  const texts = [c.header?.format === 'TEXT' ? c.header.text : '', c.body, c.text];
+  const texts = [c.header?.format === 'TEXT' ? c.header.text : '', c.body, c.title, c.text];
   for (const button of c.buttons || []) {
     if (button.type === 'URL') texts.push(button.url);
   }
@@ -116,6 +116,19 @@ function fill(text, values, format, encode = (v) => v) {
 }
 
 /**
+ * Replaces placeholders with the result of `replace(name)` (no value lookup).
+ *
+ * @param {string} text
+ * @param {'named'|'positional'} format
+ * @param {(name: string) => string} replace
+ * @returns {string}
+ */
+function fillRaw(text, format, replace) {
+  const re = format === 'positional' ? POSITIONAL : NAMED;
+  return String(text || '').replace(re, (_, name) => replace(name));
+}
+
+/**
  * SMS length: GSM-7 (160/153) or UCS-2 (70/67) segments.
  *
  * @param {string} text
@@ -156,10 +169,12 @@ const telegramVisibleLength = (html) =>
  *
  * @param {{channel: string, key: string, language: string, parameterFormat?: string, content: object, variables: Array<object>}} template
  * @param {Record<string, unknown>} input
+ * @param {{headerMedia?: {link: string, filename?: string}|null}} [options] - WhatsApp media
+ *   header for this message (attachment or the template's default file).
  * @returns {{payload: object, preview: string, sms?: object}}
  * @throws {{code: 'MISSING_VARIABLE'|'INVALID_VARIABLE', details: object}}
  */
-function render(template, input) {
+function render(template, input, options = {}) {
   const format = template.parameterFormat === 'positional' ? 'positional' : 'named';
   const parsed = variablesSchema(template.variables).safeParse(input || {});
   if (!parsed.success) {
@@ -185,9 +200,16 @@ function render(template, input) {
     if (c.header?.format === 'TEXT') {
       const names = placeholders(c.header.text, format);
       if (names.length) components.push({ type: 'header', parameters: names.map(param) });
-    } else if (c.header && ['IMAGE', 'DOCUMENT', 'VIDEO'].includes(c.header.format) && c.header.mediaId) {
+    } else if (c.header && ['IMAGE', 'DOCUMENT', 'VIDEO'].includes(c.header.format)) {
       const kind = c.header.format.toLowerCase();
-      components.push({ type: 'header', parameters: [{ type: kind, [kind]: { id: String(c.header.mediaId) } }] });
+      let media = null;
+      if (options.headerMedia?.link) {
+        media = { link: options.headerMedia.link };
+        if (kind === 'document' && options.headerMedia.filename) media.filename = options.headerMedia.filename;
+      } else if (c.header.mediaId) {
+        media = { id: String(c.header.mediaId) };
+      }
+      if (media) components.push({ type: 'header', parameters: [{ type: kind, [kind]: media }] });
     }
     const bodyNames = placeholders(c.body, format);
     if (bodyNames.length) components.push({ type: 'body', parameters: bodyNames.map(param) });
@@ -202,6 +224,14 @@ function render(template, input) {
             parameters: [{ type: 'text', text: whatsappParam(values[names[0]] ?? '') }],
           });
         }
+      }
+      if (button.type === 'QUICK_REPLY' && button.payload) {
+        components.push({
+          type: 'button',
+          sub_type: 'quick_reply',
+          index: String(index),
+          parameters: [{ type: 'payload', payload: button.payload }],
+        });
       }
       if (button.type === 'COPY_CODE' && button.variable) {
         components.push({
@@ -236,7 +266,29 @@ function render(template, input) {
       error.details = { field: 'text', reason: 'too_long' };
       throw error;
     }
-    return { payload: { text }, preview: fill(c.text, values, format) };
+    const payload = { text };
+    if (c.buttons?.length) payload.buttons = c.buttons.map((b) => ({ title: b.title, payload: b.payload }));
+    return { payload, preview: fill(c.text, values, format) };
+  }
+
+  if (template.channel === 'rcs') {
+    const text = fill(c.text, values, format).slice(0, 1600);
+    const title = c.title ? fill(c.title, values, format).slice(0, 200) : null;
+    if (c.contentSid) {
+      // Twilio Content templates use numbered variables ({{1}}, {{2}} …) in
+      // the order stored when the template was created (content.variableOrder).
+      const order = Array.isArray(c.variableOrder) ? c.variableOrder : templateVariables(template);
+      const contentVariables = Object.fromEntries(order.map((name, i) => [String(i + 1), values[name] ?? '']));
+      return {
+        payload: { kind: 'rcs', contentSid: c.contentSid, contentVariables, text },
+        preview: [title, text].filter(Boolean).join('\n\n'),
+      };
+    }
+    const body = title ? `${title}\n\n${text}`.slice(0, 1600) : text;
+    return {
+      payload: { kind: 'rcs', text: body, ...(c.mediaUrl ? { mediaUrl: c.mediaUrl } : {}) },
+      preview: body,
+    };
   }
 
   const text = fill(c.text, values, format).slice(0, 1600);
@@ -249,6 +301,7 @@ module.exports = {
   templateVariables,
   variablesSchema,
   render,
+  fillRaw,
   smsSegments,
   escapeHtml,
   clean,

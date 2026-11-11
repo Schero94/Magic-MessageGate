@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const os = require('os');
 const configModule = require('../config');
 const { dialectOf } = require('../store/coordination');
+const { adapterFor } = require('../adapters');
 
 /**
  * @typedef {object} CoreContext
@@ -24,6 +25,8 @@ const { dialectOf } = require('../store/coordination');
  * @property {object|null} magicMail - Magic Mail email-router service when installed.
  * @property {string} publicUrl
  * @property {string} [encryptionKey]
+ * @property {{get: Function, localPath?: Function, fetchRemote?: Function}|null} files - Media library access.
+ * @property {(provider: string) => object|null} adapter - Provider adapter (live or sandbox).
  */
 
 /**
@@ -46,6 +49,8 @@ function createContext(input) {
     magicMail: input.magicMail || null,
     publicUrl: String(input.publicUrl || config.publicUrl || '').replace(/\/+$/, ''),
     encryptionKey: config.encryptionKey,
+    files: input.files || null,
+    adapter: (provider) => adapterFor(provider, config.providers.mode),
   };
 }
 

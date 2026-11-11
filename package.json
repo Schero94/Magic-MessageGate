@@ -1,7 +1,7 @@
 {
   "name": "strapi-plugin-magic-messagegate",
   "version": "1.0.1",
-  "description": "Send template messages over WhatsApp, Telegram and SMS from Strapi 5, with a durable outbox, delivery and read tracking, consent and fallback.",
+  "description": "Send and receive WhatsApp, RCS, Telegram and SMS messages from Strapi 5: templates, attachments, durable outbox, delivery and read tracking, inbound messages and files, consent and fallback.",
   "keywords": [
     "strapi",
     "strapi-plugin",
@@ -13,6 +13,9 @@
     "telegram-bot",
     "sms",
     "messaging",
+    "rcs",
+    "inbound",
+    "webhooks",
     "notifications",
     "templates"
   ],
@@ -40,6 +43,12 @@
       "import": "./dist/server/index.mjs",
       "require": "./dist/server/index.js",
       "default": "./dist/server/index.js"
+    },
+    "./testing": {
+      "source": "./server/src/testing/index.js",
+      "import": "./dist/testing/index.mjs",
+      "require": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
     }
   },
   "files": [
@@ -131,6 +140,6 @@
     "kind": "plugin",
     "name": "magic-messagegate",
     "displayName": "Magic MessageGate",
-    "description": "Template messages over WhatsApp, Telegram and SMS with delivery tracking"
+    "description": "WhatsApp, RCS, Telegram and SMS: templates, inbound inbox and delivery tracking"
   }
 }

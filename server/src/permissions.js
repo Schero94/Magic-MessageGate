@@ -19,6 +19,8 @@ const ACTIONS = Object.freeze([
   { uid: 'contacts.read', displayName: 'Read contacts', subCategory: 'Contacts' },
   { uid: 'contacts.manage', displayName: 'Manage contacts and consent', subCategory: 'Contacts' },
   { uid: 'contacts.export', displayName: 'Export contact data', subCategory: 'Contacts' },
+  { uid: 'inbound.read', displayName: 'Read inbound messages and files', subCategory: 'Inbox' },
+  { uid: 'inbound.manage', displayName: 'Mark inbound messages processed', subCategory: 'Inbox' },
   { uid: 'analytics.read', displayName: 'Read analytics', subCategory: 'Analytics' },
   { uid: 'settings.read', displayName: 'Read settings', subCategory: 'Settings' },
   { uid: 'settings.update', displayName: 'Update settings', subCategory: 'Settings' },

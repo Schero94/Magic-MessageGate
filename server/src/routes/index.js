@@ -52,6 +52,7 @@ module.exports = {
       admin('GET', '/messages', 'listMessages', 'messages.read'),
       admin('GET', '/messages/:id', 'getMessage', 'messages.read'),
       admin('POST', '/messages', 'sendMessage', 'messages.send'),
+      admin('POST', '/messages/preview', 'previewMessage', 'messages.send'),
       admin('POST', '/messages/:id/retry', 'retryMessage', 'messages.manage'),
       admin('POST', '/messages/:id/discard', 'discardMessage', 'messages.manage'),
       admin('POST', '/messages/:id/mark-sent', 'markMessageSent', 'messages.manage'),
@@ -65,11 +66,20 @@ module.exports = {
       admin('GET', '/contacts/:id/export', 'exportContact', 'contacts.export'),
       admin('DELETE', '/contacts/:id', 'eraseContact', 'contacts.manage'),
 
+      admin('GET', '/inbound', 'listInbound', 'inbound.read'),
+      admin('GET', '/inbound/unread', 'inboundUnread', 'inbound.read'),
+      admin('GET', '/inbound/:id', 'getInbound', 'inbound.read'),
+      admin('GET', '/inbound/:id/media', 'inboundMedia', 'inbound.read'),
+      admin('POST', '/inbound/:id/processed', 'inboundProcessed', 'inbound.manage'),
+      admin('POST', '/inbound/:id/reply', 'replyInbound', 'messages.send'),
+      admin('GET', '/conversations/:id', 'conversation', 'inbound.read'),
+
       admin('POST', '/lookup', 'lookup', 'contacts.read'),
       admin('GET', '/lookup/budget', 'lookupBudget', 'contacts.read'),
       admin('GET', '/analytics', 'analytics', 'analytics.read'),
       admin('GET', '/settings', 'getSettings', 'settings.read'),
       admin('PUT', '/settings', 'updateSettings', 'settings.update'),
+      admin('POST', '/settings/webhook-secret', 'rotateWebhookSecret', 'settings.update'),
     ],
   },
   'content-api': {
@@ -80,6 +90,19 @@ module.exports = {
       { method: 'POST', path: '/consent', handler: 'content-api.consent', config: { policies: [] } },
       { method: 'POST', path: '/telegram-link', handler: 'content-api.telegramLink', config: { policies: [] } },
       { method: 'POST', path: '/lookup', handler: 'content-api.lookup', config: { policies: [] } },
+      { method: 'POST', path: '/capabilities', handler: 'content-api.capabilities', config: { policies: [] } },
+      { method: 'POST', path: '/templates/render', handler: 'content-api.renderTemplate', config: { policies: [] } },
+      // Inbound text and files: separate controller = separate token permissions.
+      { method: 'GET', path: '/inbound', handler: 'inbound-api.list', config: { policies: [] } },
+      { method: 'GET', path: '/inbound/:id', handler: 'inbound-api.get', config: { policies: [] } },
+      { method: 'POST', path: '/inbound/:id/processed', handler: 'inbound-api.processed', config: { policies: [] } },
+      { method: 'GET', path: '/inbound/:id/media', handler: 'inbound-api.media', config: { policies: [] } },
+      { method: 'POST', path: '/inbound/:id/media-url', handler: 'inbound-api.mediaUrl', config: { policies: [] } },
+      { method: 'POST', path: '/inbound/:id/reply', handler: 'inbound-api.reply', config: { policies: [] } },
+      { method: 'GET', path: '/conversations/:id', handler: 'inbound-api.conversation', config: { policies: [] } },
+      { method: 'POST', path: '/sandbox/inbound', handler: 'inbound-api.simulate', config: { policies: [] } },
+      // Signed, expiring download links (SMS attachments, inbound media URLs).
+      { method: 'GET', path: '/files/:token', handler: 'files.download', config: { auth: false, policies: [] } },
       {
         method: 'GET',
         path: '/webhooks/:provider/:path',
