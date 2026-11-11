@@ -12,6 +12,8 @@ export const permissions = {
   contactsRead: action('contacts.read'),
   contactsManage: action('contacts.manage'),
   contactsExport: action('contacts.export'),
+  inboundRead: action('inbound.read'),
+  inboundManage: action('inbound.manage'),
   analyticsRead: action('analytics.read'),
   settingsRead: action('settings.read'),
   settingsUpdate: action('settings.update'),
@@ -20,6 +22,7 @@ export const permissions = {
 /** Any of these opens the plugin page. */
 export const menuPermissions = [
   ...permissions.messagesRead,
+  ...permissions.inboundRead,
   ...permissions.templatesRead,
   ...permissions.contactsRead,
   ...permissions.accountsRead,

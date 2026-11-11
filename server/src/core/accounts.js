@@ -8,7 +8,7 @@
 const crypto = require('node:crypto');
 const { z } = require('zod');
 const { T } = require('../store/schema');
-const { getAdapter, PROVIDERS_BY_CHANNEL } = require('../adapters');
+const { PROVIDERS_BY_CHANNEL } = require('../adapters');
 const { seal, tryOpen, randomToken } = require('../utils/crypto');
 const { MessageGateError } = require('../utils/errors');
 const { newId, parseJson } = require('./context');
@@ -61,6 +61,11 @@ const PROVIDER_CONFIG = Object.freeze({
         twoStepPin: z
           .string()
           .regex(/^\d{6}$/)
+          .optional(),
+        // Meta app id: needed for the Resumable Upload API (media template samples).
+        appId: z
+          .string()
+          .regex(/^\d{5,25}$/)
           .optional(),
       })
       .strict(),
@@ -116,6 +121,8 @@ const PROVIDER_CONFIG = Object.freeze({
           .string()
           .regex(/^MG[0-9a-f]{32}$/)
           .optional(),
+        // RCS only: let Twilio fall back to SMS by itself (off: MessageGate's chain decides).
+        twilioFallback: z.boolean().optional(),
       })
       .strict()
       .refine((c) => Boolean(c.from || c.messagingServiceSid), { message: 'from or messagingServiceSid is required' }),
@@ -126,7 +133,7 @@ const PROVIDER_CONFIG = Object.freeze({
 
 const baseSchema = z
   .object({
-    channel: z.enum(['whatsapp', 'telegram', 'sms']),
+    channel: z.enum(['whatsapp', 'rcs', 'telegram', 'sms']),
     provider: z.enum(['meta', 'telegram', 'seven', 'twilio']),
     name: z.string().trim().min(1).max(120),
     isActive: z.boolean().default(true),
@@ -295,6 +302,10 @@ function createAccounts(ctx) {
         throw new MessageGateError('CONFIG_INVALID', undefined, { field: 'provider' });
       }
       const config = buildConfig(data.provider, data.config);
+      // RCS goes through the Messaging Service that holds the RCS sender.
+      if (data.channel === 'rcs' && !config.messagingServiceSid) {
+        throw new MessageGateError('CONFIG_INVALID', undefined, { field: 'messagingServiceSid' });
+      }
       const now = ctx.now();
       const row = {
         document_id: newId(),
@@ -346,7 +357,11 @@ function createAccounts(ctx) {
       if (data.priority !== undefined) update.priority = data.priority;
       if (data.limits !== undefined) update.limits = JSON.stringify(data.limits);
       if (data.config !== undefined) {
-        update.config_sealed = seal(buildConfig(row.provider, data.config, decrypt(row)), PURPOSE, ctx.encryptionKey);
+        const config = buildConfig(row.provider, data.config, decrypt(row));
+        if (row.channel === 'rcs' && !config.messagingServiceSid) {
+          throw new MessageGateError('CONFIG_INVALID', undefined, { field: 'messagingServiceSid' });
+        }
+        update.config_sealed = seal(config, PURPOSE, ctx.encryptionKey);
       }
       await ctx.knex.transaction(async (trx) => {
         if (data.isDefault)
@@ -416,7 +431,7 @@ function createAccounts(ctx) {
         });
       }
       const data = parsed.data;
-      const adapter = getAdapter('meta');
+      const adapter = ctx.adapter('meta');
       const settings = ctx.config.providers.meta || {};
       const exchanged = await adapter.exchangeCode({
         appId: signup.appId,
@@ -499,7 +514,7 @@ function createAccounts(ctx) {
     async testConnection(documentId) {
       const row = await api.getRow(documentId);
       if (!row) throw new MessageGateError('NOT_FOUND');
-      const adapter = getAdapter(row.provider);
+      const adapter = ctx.adapter(row.provider);
       const config = decrypt(row);
       const settings = ctx.config.providers[row.provider] || {};
       const result = await adapter.testConnection({ config, settings, fetchImpl: ctx.fetchImpl });

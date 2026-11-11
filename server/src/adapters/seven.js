@@ -13,6 +13,12 @@
  *   DELIVERED, NOTDELIVERED, BUFFERED, TRANSMITTED, ACCEPTED, EXPIRED,
  *   REJECTED, FAILED.
  * - Webhooks are signed like requests (see utils/signatures.js).
+ * - https://docs.seven.io/en/rest-api/endpoints/lookup (read 2026-11-11):
+ *   GET /api/lookup/hlr?number=…, fields `valid_number` (valid | not_valid |
+ *   unknown), `reachable` (reachable | absent | bad_number | unknown),
+ *   `ported`, `roaming`, `current_carrier {network_code, name, country,
+ *   network_type}`. Refused with code 501 when the spending limit is reached.
+ *   Paid per request (0.01 EUR per seven.io price list).
  */
 const { request } = require('./http');
 
@@ -99,6 +105,45 @@ module.exports = {
       code,
       retryAfterMs: null,
       accountProblem: ACCOUNT.has(success),
+    };
+  },
+
+  /**
+   * HLR lookup: is the number assigned and registered in a mobile network.
+   *
+   * @param {{config: object, e164: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null, valid: string|null, reachable: string|null, ported: string|null, roaming: string|null, network: string|null, networkType: string|null}>}
+   */
+  async hlr({ config, e164, settings, fetchImpl }) {
+    const number = String(e164).replace(/^\+/, '');
+    const res = await request({
+      url: `${settings?.baseUrl || DEFAULT_BASE}/api/lookup/hlr?number=${encodeURIComponent(number)}`,
+      method: 'GET',
+      headers: { 'x-api-key': config.apiKey, accept: 'application/json' },
+      timeoutMs: 10_000,
+      fetchImpl,
+    });
+    const empty = { valid: null, reachable: null, ported: null, roaming: null, network: null, networkType: null };
+    const j = res.json;
+    if (res.outcome !== 'accepted' || !j || typeof j !== 'object' || Array.isArray(j) || j.status === false) {
+      const raw = j && typeof j === 'object' && !Array.isArray(j) ? (j.code ?? j.success) : j;
+      return {
+        ok: false,
+        code: raw !== undefined && raw !== null ? `SEVEN_${String(raw).slice(0, 20)}` : res.code,
+        ...empty,
+      };
+    }
+    const word = (v) => (typeof v === 'string' && /^[a-z_]{1,40}$/.test(v) ? v : null);
+    const carrier = j.current_carrier || {};
+    return {
+      ok: true,
+      code: null,
+      valid: word(j.valid_number),
+      reachable: word(j.reachable),
+      ported: word(j.ported),
+      roaming: typeof j.roaming === 'string' ? word(j.roaming) : null,
+      network: typeof carrier.name === 'string' ? carrier.name.slice(0, 60) : null,
+      networkType: word(carrier.network_type),
     };
   },
 

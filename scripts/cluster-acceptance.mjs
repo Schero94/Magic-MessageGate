@@ -95,7 +95,8 @@ const secret = () => crypto.randomBytes(24).toString('base64');
 const runEnv = {
   ...process.env,
   NODE_ENV: 'production',
-  NODE_OPTIONS: `-r ${path.join(here, 'cluster', 'block-egress.cjs')}`,
+  // Quoted: NODE_OPTIONS splits on spaces, and checkouts may live in folders with spaces.
+  NODE_OPTIONS: `-r "${path.join(here, 'cluster', 'block-egress.cjs')}"`,
   DATABASE_CLIENT: 'postgres',
   DATABASE_URL: pgUrl,
   APP_KEYS: [secret(), secret()].join(','),

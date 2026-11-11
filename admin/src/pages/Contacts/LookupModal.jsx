@@ -4,6 +4,7 @@ import { ListSearch, PaperPlane, Plus } from '@strapi/icons';
 
 import { Notice } from '../../components/ui/Notice';
 import { ReachabilityBadge, ToneBadge } from '../../components/ui/StatusBadge';
+import { RcsBadge } from './NumberCheck';
 import { useAction } from '../../hooks/useAction';
 import { useApi } from '../../hooks/useApi';
 import { useLoad } from '../../hooks/useLoad';
@@ -33,16 +34,18 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
   const budgetLoader = useCallback(() => api.get('/lookup/budget'), [api]);
   const { data: budget, reload: reloadBudget } = useLoad(budgetLoader);
 
-  const check = async (remote) => {
+  /** @param {'local'|'remote'|'hlr'} mode - Free check, Twilio line type or seven.io HLR. */
+  const check = async (mode) => {
     if (!phone.trim()) {
       setError(t('form.required', 'This field is required.'));
       return;
     }
-    setBusy(remote ? 'remote' : 'local');
+    setBusy(mode);
     try {
-      setResult(await act(() => api.post('/lookup', { phone: phone.trim(), remote })));
+      const body = { phone: phone.trim(), remote: mode === 'remote', ...(mode === 'hlr' ? { hlr: true } : {}) };
+      setResult(await act(() => api.post('/lookup', body)));
       setError(null);
-      if (remote) reloadBudget();
+      if (mode !== 'local') reloadBudget();
     } catch (err) {
       if (apiError(err).code === 'INVALID_PHONE')
         setError(t('error.INVALID_PHONE', 'The phone number is not a valid mobile number.'));
@@ -83,7 +86,7 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            check(false);
+            check('local');
           }}
           noValidate
         >
@@ -113,12 +116,12 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                 <Field.Error />
               </Field.Root>
 
-              {budget?.enabled && rbac.contacts.manage ? (
+              {(budget?.enabled || budget?.hlrEnabled) && rbac.contacts.manage ? (
                 <Box background="neutral100" hasRadius padding={4}>
                   <Flex direction="column" alignItems="stretch" gap={2}>
                     <Flex justifyContent="space-between" gap={2} wrap="wrap">
                       <Typography variant="sigma" textColor="neutral600">
-                        {t('lookup.budget', 'Twilio lookups in {month}', { month: budget.month })}
+                        {t('lookup.budget.paid', 'Paid lookups in {month}', { month: budget.month })}
                       </Typography>
                       <Typography variant="pi" textColor="neutral700">
                         {t('lookup.budget.value', '{used} of {budget} used, {left} left', {
@@ -139,16 +142,28 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                         days: budget.cacheDays,
                       })}
                     </Typography>
-                    <Box>
-                      <Button
-                        variant="secondary"
-                        onClick={() => check(true)}
-                        loading={busy === 'remote'}
-                        disabled={left <= 0 || Boolean(busy)}
-                      >
-                        {t('lookup.remote', 'Check with Twilio')}
-                      </Button>
-                    </Box>
+                    <Flex gap={2} wrap="wrap">
+                      {budget.enabled ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => check('remote')}
+                          loading={busy === 'remote'}
+                          disabled={left <= 0 || Boolean(busy)}
+                        >
+                          {t('lookup.remote', 'Check with Twilio')}
+                        </Button>
+                      ) : null}
+                      {budget.hlrEnabled ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => check('hlr')}
+                          loading={busy === 'hlr'}
+                          disabled={left <= 0 || Boolean(busy)}
+                        >
+                          {t('lookup.hlr', 'Check the network (HLR)')}
+                        </Button>
+                      ) : null}
+                    </Flex>
                   </Flex>
                 </Box>
               ) : null}
@@ -181,6 +196,42 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                           </Typography>
                           <ReachabilityBadge value={result.whatsapp} />
                         </Grid.Item>
+                        <Grid.Item col={6} xs={12} direction="column" alignItems="flex-start">
+                          <Typography variant="sigma" textColor="neutral600">
+                            {t('lookup.rcs', 'RCS')}
+                          </Typography>
+                          {result.rcs && result.rcs !== 'unknown' ? (
+                            <RcsBadge value={result.rcs} />
+                          ) : (
+                            <Typography textColor="neutral600">{t('lookup.rcs.unknown', 'Not known yet')}</Typography>
+                          )}
+                        </Grid.Item>
+                        {result.hlr ? (
+                          <Grid.Item col={6} xs={12} direction="column" alignItems="flex-start">
+                            <Typography variant="sigma" textColor="neutral600">
+                              {t('lookup.hlr.result', 'Network (HLR)')}
+                            </Typography>
+                            {result.hlr.ok === false ? (
+                              <Typography>{result.hlr.code}</Typography>
+                            ) : (
+                              <Flex gap={2} wrap="wrap">
+                                {result.hlr.active === true ? (
+                                  <ToneBadge tone="success">{t('contacts.line.active', 'Assigned')}</ToneBadge>
+                                ) : result.hlr.active === false ? (
+                                  <ToneBadge tone="danger">{t('contacts.line.inactive', 'Not assigned')}</ToneBadge>
+                                ) : (
+                                  <ToneBadge>{t('lookup.hlr.unknown', 'Unknown')}</ToneBadge>
+                                )}
+                                {result.hlr.network ? <Typography>{result.hlr.network}</Typography> : null}
+                                {result.hlr.cached ? (
+                                  <Typography variant="pi" textColor="neutral600">
+                                    {t('lookup.cached', 'cached')}
+                                  </Typography>
+                                ) : null}
+                              </Flex>
+                            )}
+                          </Grid.Item>
+                        ) : null}
                         {result.remote ? (
                           <Grid.Item col={6} xs={12} direction="column" alignItems="flex-start">
                             <Typography variant="sigma" textColor="neutral600">
@@ -204,8 +255,8 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
                       ) : null}
                       <Typography variant="pi" textColor="neutral600">
                         {t(
-                          'lookup.whatsappHint',
-                          'WhatsApp offers no lookup. MessageGate learns it from the first message: if Meta reports the number is not on WhatsApp, the routing falls back to the next channel.'
+                          'lookup.whatsappHint.rcs',
+                          'WhatsApp and Twilio RCS offer no lookup. MessageGate learns both from the first messages: if the number is not on WhatsApp or cannot receive RCS, routing falls back to the next channel.'
                         )}
                       </Typography>
                       <Flex gap={2} wrap="wrap">

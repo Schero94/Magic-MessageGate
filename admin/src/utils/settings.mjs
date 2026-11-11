@@ -7,13 +7,20 @@ export const BOUNDS = {
   monthlyBudget: [0, 1_000_000],
   messageDays: [1, 3650],
   receiptDays: [1, 90],
+  linkTtlHours: [1, 720],
+  retentionDays: [1, 3650],
+  replyWindowHours: [1, 720],
+  maxMb: [1, 100],
 };
+
+/** Outgoing webhook events (mirror server HOOK_EVENTS). */
+export const HOOK_EVENTS = ['message.received', 'message.status', 'media.ready', 'media.failed'];
 
 const inRange = (value, [min, max]) => Number.isInteger(value) && value >= min && value <= max;
 
 /**
  * @param {object} s - Settings draft.
- * @returns {Record<string, 'required' | 'invalid' | 'range' | 'emptyChain' | 'duplicate'>} Errors by path.
+ * @returns {Record<string, 'required' | 'invalid' | 'range' | 'emptyChain' | 'duplicate' | 'https'>} Errors by path.
  */
 export function validateSettings(s) {
   const errors = {};
@@ -31,6 +38,14 @@ export function validateSettings(s) {
   if (!inRange(s.lookup?.cacheDays, BOUNDS.cacheDays)) errors['lookup.cacheDays'] = 'range';
   if (!inRange(s.lookup?.monthlyBudget, BOUNDS.monthlyBudget)) errors['lookup.monthlyBudget'] = 'range';
   if (s.lookup?.enabled && !s.lookup.accountId) errors['lookup.accountId'] = 'required';
+  if (s.lookup?.hlrEnabled && !s.lookup.hlrAccountId) errors['lookup.hlrAccountId'] = 'required';
+  if (!inRange(s.attachments?.linkTtlHours, BOUNDS.linkTtlHours)) errors['attachments.linkTtlHours'] = 'range';
+  if (!inRange(s.inbound?.retentionDays, BOUNDS.retentionDays)) errors['inbound.retentionDays'] = 'range';
+  if (!inRange(s.inbound?.replyWindowHours, BOUNDS.replyWindowHours)) errors['inbound.replyWindowHours'] = 'range';
+  if (!inRange(s.inboundMedia?.maxMb, BOUNDS.maxMb)) errors['inboundMedia.maxMb'] = 'range';
+  const hook = s.outgoingWebhook || {};
+  if (hook.enabled && !hook.url) errors['outgoingWebhook.url'] = 'required';
+  else if (hook.url && !/^https:\/\/[^\s/]+\.[^\s]+$/.test(hook.url)) errors['outgoingWebhook.url'] = 'https';
   if (!inRange(s.retention?.messageDays, BOUNDS.messageDays)) errors['retention.messageDays'] = 'range';
   if (!inRange(s.retention?.receiptDays, BOUNDS.receiptDays)) errors['retention.receiptDays'] = 'range';
   return errors;
@@ -61,5 +76,5 @@ export function moveInChain(chain, index, direction) {
 export function newRule(rules = []) {
   let n = rules.length + 1;
   while (rules.some((r) => r.id === `rule_${n}`)) n += 1;
-  return { id: `rule_${n}`, name: '', templateKeys: [], countries: [], tags: [], chain: ['whatsapp', 'sms'] };
+  return { id: `rule_${n}`, name: '', templateKeys: [], countries: [], tags: [], chain: ['whatsapp', 'rcs', 'sms'] };
 }

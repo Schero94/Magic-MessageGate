@@ -115,11 +115,11 @@ test('source contract: sections are RBAC gated and destructive actions use Confi
     );
 });
 
-test('permissions: the admin uses exactly the 14 server actions', () => {
+test('permissions: the admin uses exactly the 16 server actions', () => {
   const src = fs.readFileSync(path.join(ADMIN, 'permissions.js'), 'utf8');
   const actions = [...src.matchAll(/action\('([a-z.]+)'\)/g)].map((m) => m[1]).sort();
   const { ACTIONS } = require('../server/src/permissions.js');
-  assert.equal(actions.length, 14);
+  assert.equal(actions.length, 16);
   assert.deepEqual(actions, ACTIONS.map((a) => a.uid).sort());
 });
 
@@ -130,7 +130,7 @@ test('permissions: registered actions match the Strapi 5 action-provider schema'
     service: () => ({ actionProvider: { registerMany: async (list) => (registered = list) } }),
   };
   await registerActions(strapi);
-  assert.equal(registered.length, 14);
+  assert.equal(registered.length, 16);
   const allowed = new Set(['uid', 'section', 'pluginName', 'displayName', 'subCategory']);
   for (const a of registered) {
     assert.equal(a.section, 'plugins');
@@ -234,8 +234,30 @@ test('utils: provider credentials, send form, settings, messages, contacts, form
     fallback: { emailEnabled: false, emailTemplateReferenceId: null },
     lookup: { enabled: false, accountId: null, cacheDays: 30, monthlyBudget: 500 },
     retention: { messageDays: 90, receiptDays: 7 },
+    attachments: { linkTtlHours: 72 },
+    inbound: { retentionDays: 90, replyWindowHours: 72 },
+    inboundMedia: { storage: 'media-library', maxMb: 25, allowedTypes: [] },
+    outgoingWebhook: { enabled: false, url: null, events: [] },
   };
   assert.deepEqual(s.validateSettings(valid), {});
+  assert.equal(
+    s.validateSettings({ ...valid, outgoingWebhook: { enabled: true, url: null, events: [] } })['outgoingWebhook.url'],
+    'required'
+  );
+  assert.equal(
+    s.validateSettings({ ...valid, outgoingWebhook: { enabled: true, url: 'http://x.example', events: [] } })[
+      'outgoingWebhook.url'
+    ],
+    'https'
+  );
+  assert.equal(
+    s.validateSettings({ ...valid, lookup: { ...valid.lookup, hlrEnabled: true } })['lookup.hlrAccountId'],
+    'required'
+  );
+  assert.equal(
+    s.validateSettings({ ...valid, inboundMedia: { ...valid.inboundMedia, maxMb: 101 } })['inboundMedia.maxMb'],
+    'range'
+  );
   assert.equal(
     s.validateSettings({ ...valid, retention: { messageDays: 0, receiptDays: 91 } })['retention.receiptDays'],
     'range'

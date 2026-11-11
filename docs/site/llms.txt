@@ -1,6 +1,6 @@
 # Magic MessageGate
 
-> Strapi 5 plugin (npm: strapi-plugin-magic-messagegate, plugin id: magic-messagegate) that sends template messages over WhatsApp (Meta Cloud API), Telegram (Bot API) and SMS (seven.io, Twilio). It has a durable exactly-once outbox, delivery and read tracking, a fallback chain (WhatsApp -> SMS -> e-mail through Magic Mail), per-channel consent with STOP keywords, and an admin built from the Strapi Design System.
+> Strapi 5 plugin (npm: strapi-plugin-magic-messagegate, plugin id: magic-messagegate) that sends and receives messages over WhatsApp (Meta Cloud API), RCS (Twilio), Telegram (Bot API) and SMS (seven.io, Twilio): send -> receive -> process -> automate. It has a durable exactly-once outbox, attachments, delivery and read tracking, inbound messages with buttons and files, a fallback chain (WhatsApp -> RCS -> SMS; e-mail through Magic Mail only when enabled), per-channel consent with STOP keywords, number checks, a dry run, a sandbox mode for tests, and an admin built from the Strapi Design System.
 
 Key facts for code generation:
 
@@ -10,11 +10,16 @@ Key facts for code generation:
 - Business-initiated WhatsApp messages need an approved template. Free text only works within 24 hours after the contact's last message.
 - Sending needs granted consent for the channel, except an AUTHENTICATION template sent with `transactional: true`.
 - The official APIs cannot tell whether a number is on WhatsApp before sending, whether someone is online, or (on Telegram and SMS) whether a message was read.
-- Events on `strapi.eventHub`: `messagegate.message.queued|sent|delivered|read|failed|uncertain|expired|discarded|fallback`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable`, `messagegate.template.status-changed`. Payloads contain no phone numbers or text.
+- Attachments: `attachment: { fileId }` (media library) or `{ url, mimeType }` (public https; JPEG, PNG, PDF, MP4). SMS gets a signed expiring link.
+- Dry run: `send(input, { dryRun: true })` or `POST /messages` with `"dryRun": true` returns chain, steps, account, masked recipient and rendered payload without sending.
+- Inbound: `messagegate.message.received` `{ inboundId, contactId, channel, replyTo, kind, buttonPayload?, media? }` once across processes; then `service('inbound').get(id)`, `.getMedia(id, { as: 'buffer'|'stream'|'base64' })`, `.createMediaUrl(id)`, `service('conversations').history({ inboundId })`, `service('messages').reply(inboundId, { text })` (WhatsApp free text only within 24 h, else `WINDOW_CLOSED`), `service('inbound').markProcessed(id)`.
+- Number checks: `service('lookup').check(phone, { hlr: true })` (seven.io HLR, paid, cached), `service('lookup').capabilities(phone)` (free). `lookup.blockInactiveNumbers` makes sends fail with `NUMBER_INACTIVE`. There is no official WhatsApp or RCS capability check.
+- Tests: `providers.mode: 'sandbox'` (or `sandboxConfig()` from `strapi-plugin-magic-messagegate/testing`), magic numbers `+4915550000001`-`008`, `sandbox.simulateInbound(...)`.
+- Events on `strapi.eventHub`: `messagegate.message.queued|sent|delivered|read|failed|uncertain|expired|discarded|fallback|received`, `messagegate.media.ready|failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable`, `messagegate.template.status-changed`. Payloads contain no phone numbers or text.
 
 ## Docs
 
-- [README](https://github.com/Schero94/Magic-MessageGate/blob/main/README.md): setup per channel, configuration, permissions, consent, security, several instances, FAQ
+- [README](https://github.com/Schero94/Magic-MessageGate/blob/main/README.md): setup per channel, receiving messages and recipes, configuration, sandbox, permissions, consent, security, several instances, FAQ
 - [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md): exact API contract (inputs, statuses, events, error codes, webhooks)
 - [llms-full.txt](https://schero94.github.io/Magic-MessageGate/llms-full.txt): README and AGENTS.md in one file
 

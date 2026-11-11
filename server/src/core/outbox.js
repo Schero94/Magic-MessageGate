@@ -25,7 +25,6 @@ const { T } = require('../store/schema');
 const { affected, acquireLease, hit } = require('../store/coordination');
 const { seal, tryOpen, logRef } = require('../utils/crypto');
 const { MessageGateError } = require('../utils/errors');
-const { getAdapter } = require('../adapters');
 const { newId, parseJson } = require('./context');
 
 const PAYLOAD = 'message-payload';
@@ -289,7 +288,7 @@ function createOutbox(ctx, deps) {
     let result = null;
     let usedAccount = null;
     for (const account of accounts) {
-      const adapter = getAdapter(account.provider);
+      const adapter = ctx.adapter(account.provider);
       const config = deps.accounts.configOf(account);
       const settings = ctx.config.providers[account.provider] || {};
       const statusCallbackUrl =
@@ -301,6 +300,7 @@ function createOutbox(ctx, deps) {
           config,
           to: sealed.to,
           payload: sealed.payload,
+          channel: row.channel,
           messageId: row.document_id,
           statusCallbackUrl,
           settings,
@@ -341,6 +341,16 @@ function createOutbox(ctx, deps) {
         await event(row.id, 'sent', null, done);
         emit(row, 'sent');
         ctx.log.debug(`[magic-messagegate] sent ${row.document_id} via ${usedAccount.provider}`);
+        // Sandbox mode: apply the simulated provider statuses through the
+        // same path as real webhooks.
+        for (const update of Array.isArray(result.simulated) ? result.simulated : []) {
+          await api.applyProviderStatus({
+            providerMessageId: result.providerMessageId,
+            status: update.status,
+            code: update.code || null,
+            at: ctx.now(),
+          });
+        }
       }
       return 'sent';
     }
@@ -602,6 +612,7 @@ function createOutbox(ctx, deps) {
         await deps.contacts.touch(row.contact_id, target === 'read' ? 'read' : 'delivered', at);
         if (target === 'read') await deps.contacts.touch(row.contact_id, 'delivered', at);
         if (row.channel === 'whatsapp') await deps.contacts.setWhatsappReachability(row.contact_id, 'ok');
+        if (row.channel === 'rcs') await deps.contacts.setRcsCapability(row.contact_id, 'capable');
       }
       return ctx.knex(T.messages).where('id', row.id).first();
     },
@@ -796,6 +807,11 @@ function createOutbox(ctx, deps) {
         .where('expires_at', '<', now - 86_400_000)
         .del();
       await ctx.knex(T.counters).where('expires_at', '<', now).del();
+      await ctx.knex(T.attachmentLinks).where('expires_at', '<', now).del();
+      await ctx
+        .knex(T.numberChecks)
+        .where('checked_at', '<', now - 365 * 86_400_000)
+        .del();
       return { messages, receipts };
     },
 

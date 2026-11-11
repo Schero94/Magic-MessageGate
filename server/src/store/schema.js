@@ -19,7 +19,7 @@
  * @see https://knexjs.org/guide/schema-builder.html
  */
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const T = Object.freeze({
   accounts: 'mg_accounts',
@@ -35,6 +35,10 @@ const T = Object.freeze({
   counters: 'mg_counters',
   linkTokens: 'mg_link_tokens',
   meta: 'mg_meta',
+  numberChecks: 'mg_number_checks',
+  attachmentLinks: 'mg_attachment_links',
+  inbound: 'mg_inbound',
+  hooksOut: 'mg_webhook_out',
 });
 
 /** @type {Array<[string, (t: any) => void]>} */
@@ -242,6 +246,94 @@ const DEFINITIONS = [
       t.bigInteger('updated_at').notNullable();
     },
   ],
+  // 1.1: cached paid number checks (HLR) per number hash and kind.
+  [
+    T.numberChecks,
+    (t) => {
+      t.string('phone_hash', 64).notNullable();
+      t.string('kind', 16).notNullable();
+      t.text('result').notNullable();
+      t.bigInteger('checked_at').notNullable();
+      t.primary(['phone_hash', 'kind'], 'mg_number_checks_pk');
+    },
+  ],
+  // 1.1: signed download links for attachments (reference only, never content).
+  [
+    T.attachmentLinks,
+    (t) => {
+      t.string('link_id', 32).primary();
+      t.text('ref_sealed').notNullable();
+      t.bigInteger('expires_at').notNullable();
+      t.bigInteger('created_at').notNullable();
+      t.index(['expires_at'], 'mg_attachment_links_exp_idx');
+    },
+  ],
+  // 1.1: inbound messages. Text, captions, locations and media references
+  // are sealed like phone numbers; `provider_key` deduplicates webhooks.
+  [
+    T.inbound,
+    (t) => {
+      t.increments('id').primary();
+      t.string('document_id', 32).notNullable().unique();
+      t.string('provider_key', 191).notNullable().unique();
+      t.integer('contact_id');
+      t.integer('account_id');
+      t.string('channel', 16).notNullable();
+      t.string('kind', 16).notNullable();
+      t.text('content_sealed');
+      t.string('button_payload', 256);
+      t.integer('reply_to_message_id');
+      t.string('media_status', 16).notNullable().defaultTo('none');
+      t.string('media_code', 64);
+      t.text('media_ref_sealed');
+      t.string('media_mime', 120);
+      t.bigInteger('media_size');
+      t.integer('media_file_id');
+      t.integer('media_attempts').notNullable().defaultTo(0);
+      t.bigInteger('media_next_at');
+      t.bigInteger('media_deadline');
+      t.string('media_lease', 40);
+      t.bigInteger('media_lease_until');
+      t.bigInteger('received_at').notNullable();
+      t.bigInteger('processed_at');
+      t.bigInteger('seen_at');
+      t.bigInteger('created_at').notNullable();
+      t.index(['contact_id', 'received_at'], 'mg_inbound_contact_idx');
+      t.index(['media_status', 'media_next_at'], 'mg_inbound_media_idx');
+      t.index(['received_at'], 'mg_inbound_received_idx');
+    },
+  ],
+  // 1.1: outgoing webhook deliveries (owner's URL), claimed like the outbox.
+  [
+    T.hooksOut,
+    (t) => {
+      t.increments('id').primary();
+      t.string('document_id', 32).notNullable().unique();
+      t.string('event', 48).notNullable();
+      t.text('payload').notNullable();
+      t.string('status', 16).notNullable();
+      t.integer('attempts').notNullable().defaultTo(0);
+      t.bigInteger('next_attempt_at').notNullable();
+      t.string('lease_token', 40);
+      t.bigInteger('lease_until');
+      t.string('last_code', 64);
+      t.bigInteger('delivered_at');
+      t.bigInteger('created_at').notNullable();
+      t.index(['status', 'next_attempt_at'], 'mg_webhook_out_due_idx');
+    },
+  ],
+];
+
+/**
+ * Columns added after 1.0 to existing tables: [table, column, define].
+ *
+ * @type {Array<[string, string, (t: any) => void]>}
+ */
+const COLUMNS = [
+  [T.contacts, 'rcs_capability', (t) => t.string('rcs_capability', 16)],
+  [T.contacts, 'rcs_capability_at', (t) => t.bigInteger('rcs_capability_at')],
+  [T.contacts, 'line_active', (t) => t.string('line_active', 16)],
+  [T.contacts, 'line_checked_at', (t) => t.bigInteger('line_checked_at')],
 ];
 
 /**
@@ -262,7 +354,20 @@ async function ensureSchema(knex) {
       if (!(await knex.schema.hasTable(name))) throw error;
     }
   }
+  for (const [table, column, define] of COLUMNS) {
+    if (await knex.schema.hasColumn(table, column)) continue;
+    try {
+      await knex.schema.alterTable(table, define);
+    } catch (error) {
+      // A parallel process added it first.
+      if (!(await knex.schema.hasColumn(table, column))) throw error;
+    }
+  }
   const now = Date.now();
+  await knex(T.meta)
+    .where('meta_key', 'schema_version')
+    .andWhere('meta_value', '<', String(SCHEMA_VERSION))
+    .update({ meta_value: String(SCHEMA_VERSION), updated_at: now });
   try {
     await knex(T.meta)
       .insert({ meta_key: 'schema_version', meta_value: String(SCHEMA_VERSION), revision: 1, updated_at: now })
@@ -286,4 +391,4 @@ async function dropSchema(knex) {
   }
 }
 
-module.exports = { T, SCHEMA_VERSION, ensureSchema, dropSchema };
+module.exports = { T, SCHEMA_VERSION, COLUMNS, ensureSchema, dropSchema };

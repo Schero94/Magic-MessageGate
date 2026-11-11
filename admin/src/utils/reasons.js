@@ -50,6 +50,16 @@ export function reasonText(t, code) {
       return t('reason.TWILIO_30005', 'The number is unknown or no longer exists.');
     case 'TWILIO_30007':
       return t('reason.TWILIO_30007', 'The carrier filtered the message as spam.');
+    case 'TWILIO_63036':
+      return t('reason.TWILIO_63036', 'The number cannot be reached over RCS (device not RCS capable or offline).');
+    case 'TWILIO_63035':
+      return t('reason.TWILIO_63035', 'The RCS sender is not approved for this carrier or country yet.');
+    case 'TWILIO_30006':
+      return t('reason.TWILIO_30006', 'The carrier could not deliver to this number (landline or unreachable).');
+    case 'NUMBER_INACTIVE':
+      return t('error.NUMBER_INACTIVE', 'The number is not assigned to a subscriber (number check).');
+    case 'SANDBOX_REJECTED':
+      return t('reason.SANDBOX_REJECTED', 'Sandbox: the test number simulates a provider rejection.');
     case 'TIMEOUT':
     case 'FETCH_ERROR':
     case 'AMBIGUOUS':

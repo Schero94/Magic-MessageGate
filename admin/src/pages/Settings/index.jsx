@@ -10,10 +10,12 @@ import {
   TextInput,
   Typography,
 } from '@strapi/design-system';
-import { Check, Plus, Trash } from '@strapi/icons';
+import { ArrowClockwise, Check, Plus, Trash } from '@strapi/icons';
 import { useNotification } from '@strapi/strapi/admin';
 
 import { BooleanField } from '../../components/ui/BooleanField';
+import { ConfirmAction } from '../../components/ui/ConfirmAction';
+import { Notice } from '../../components/ui/Notice';
 import { CopyField } from '../../components/ui/CopyField';
 import { NumberField } from '../../components/ui/NumberField';
 import { SectionCard } from '../../components/ui/SectionCard';
@@ -28,7 +30,7 @@ import { useMgRBAC } from '../../hooks/useMgRBAC';
 import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { apiError } from '../../utils/apiError';
-import { BOUNDS, newRule, validateSettings } from '../../utils/settings.mjs';
+import { BOUNDS, HOOK_EVENTS, newRule, validateSettings } from '../../utils/settings.mjs';
 import { ChainEditor } from './ChainEditor';
 
 const HEALTH_VARIANT = { ok: 'success', error: 'danger', unknown: 'neutral' };
@@ -71,6 +73,7 @@ export const SettingsPage = () => {
   const [revision, setRevision] = useState(0);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [secret, setSecret] = useState(null);
 
   // Adopt freshly loaded settings (first load and after a conflict reload).
   const [seen, setSeen] = useState(null);
@@ -102,6 +105,7 @@ export const SettingsPage = () => {
     invalid: t('settings.error.country', 'Use a two-letter country code like DE.'),
     emptyChain: t('settings.error.chain', 'Add at least one channel.'),
     duplicate: t('settings.error.duplicate', 'Two rules have the same id.'),
+    https: t('settings.error.https', 'Use a public https address.'),
   };
 
   const save = async () => {
@@ -132,18 +136,33 @@ export const SettingsPage = () => {
       const { code, details } = apiError(err);
       if (code === 'STATE_CHANGED') reload();
       if (code === 'CONFIG_INVALID' && details.path) setErrors({ [details.path]: messages.required });
+      if (code === 'WEBHOOK_URL_INVALID') setErrors({ 'outgoingWebhook.url': messages.https });
     } finally {
       setSaving(false);
     }
   };
 
   const twilio = (accounts || []).filter((a) => a.provider === 'twilio');
+  const seven = (accounts || []).filter((a) => a.provider === 'seven');
+  const eventLabels = {
+    'message.received': t('settings.hook.event.received', 'Inbound message received'),
+    'message.status': t('settings.hook.event.status', 'Delivery status changed'),
+    'media.ready': t('settings.hook.event.mediaReady', 'Inbound file stored'),
+    'media.failed': t('settings.hook.event.mediaFailed', 'Inbound file refused or failed'),
+  };
+  const rotate = async () => {
+    const result = await act(
+      () => api.post('/settings/webhook-secret'),
+      t('settings.hook.secret.done', 'A new signing secret was created. Copy it now; it is shown only once.')
+    );
+    setSecret(result.secret);
+  };
   const hooks = (accounts || []).filter((a) => a.webhookUrl);
 
   return (
     <SectionFrame
       title={t('settings.title', 'Settings')}
-      subtitle={t('settings.subtitle', 'Routing, consent, number checks, data retention and webhooks.')}
+      subtitle={t('settings.subtitle', 'Routing, consent, number checks, inbox, data retention and webhooks.')}
       busy={isLoading}
       primaryAction={
         readOnly || !draft ? null : (
@@ -159,6 +178,14 @@ export const SettingsPage = () => {
         <LoadingState />
       ) : (
         <>
+          {data.sandbox ? (
+            <Notice variant="warning" title={t('settings.sandbox.title', 'Sandbox mode')}>
+              {t(
+                'settings.sandbox.body',
+                'providers.mode is sandbox: no message leaves this server and every status is simulated by test numbers. Turn it off in config/plugins for production.'
+              )}
+            </Notice>
+          ) : null}
           <SectionCard
             title={t('settings.routing', 'Routing and fallback')}
             subtitle={t(
@@ -435,6 +462,243 @@ export const SettingsPage = () => {
                   disabled={readOnly}
                   onChange={(value) => set('lookup.cacheDays', value)}
                 />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <BooleanField
+                  name="lookup.hlrEnabled"
+                  label={t('settings.lookup.hlr', 'Use seven.io HLR check')}
+                  hint={t(
+                    'settings.lookup.hlr.hint',
+                    'Asks the mobile network whether the number is assigned. Paid per check, shares the budget.'
+                  )}
+                  checked={draft.lookup.hlrEnabled}
+                  disabled={readOnly}
+                  onCheckedChange={(value) => set('lookup.hlrEnabled', value)}
+                />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <Field.Root
+                  name="lookup.hlrAccountId"
+                  error={errors['lookup.hlrAccountId']}
+                  hint={
+                    seven.length
+                      ? t('settings.lookup.hlrAccount.hint', 'HLR checks are billed to this seven.io account.')
+                      : t('settings.lookup.hlrAccount.none', 'Connect a seven.io account first.')
+                  }
+                >
+                  <Field.Label>{t('settings.lookup.hlrAccount', 'seven.io account')}</Field.Label>
+                  <SingleSelect
+                    value={draft.lookup.hlrAccountId ?? undefined}
+                    placeholder={t('settings.lookup.account.placeholder', 'Choose an account')}
+                    disabled={readOnly || !seven.length}
+                    onChange={(value) => set('lookup.hlrAccountId', value)}
+                  >
+                    {seven.map((a) => (
+                      <SingleSelectOption key={a.id} value={a.id}>
+                        {a.name}
+                      </SingleSelectOption>
+                    ))}
+                  </SingleSelect>
+                  <Field.Hint />
+                  <Field.Error />
+                </Field.Root>
+              </Grid.Item>
+              <Grid.Item col={12} direction="column" alignItems="stretch">
+                <BooleanField
+                  name="lookup.blockInactiveNumbers"
+                  label={t('settings.lookup.block', 'Stop sends to unassigned numbers')}
+                  hint={t(
+                    'settings.lookup.block.hint',
+                    'Before sending, the HLR result decides: unassigned numbers fail with NUMBER_INACTIVE and cost nothing. Without a result the message is sent.'
+                  )}
+                  checked={draft.lookup.blockInactiveNumbers}
+                  disabled={readOnly || !draft.lookup.hlrEnabled}
+                  onCheckedChange={(value) => set('lookup.blockInactiveNumbers', value)}
+                />
+              </Grid.Item>
+            </Grid.Root>
+          </SectionCard>
+
+          <SectionCard
+            title={t('settings.inbox', 'Inbox and files')}
+            subtitle={t(
+              'settings.inbox.subtitle',
+              'Replies from contacts, files they send, and download links for attachments sent by SMS.'
+            )}
+          >
+            <Grid.Root gap={4}>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <NumberField
+                  name="inbound.retentionDays"
+                  label={t('settings.inbox.retention', 'Keep inbound messages')}
+                  hint={t('settings.inbox.retention.hint', 'Texts and stored files are deleted after this time.')}
+                  unit={t('settings.unit.days', 'days')}
+                  error={errors['inbound.retentionDays']}
+                  value={draft.inbound.retentionDays}
+                  disabled={readOnly}
+                  onChange={(value) => set('inbound.retentionDays', value)}
+                />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <NumberField
+                  name="inbound.replyWindowHours"
+                  label={t('settings.inbox.replyWindow', 'Reply window for SMS')}
+                  hint={t(
+                    'settings.inbox.replyWindow.hint',
+                    'SMS has no reply reference, so an answer within this time belongs to the last message sent.'
+                  )}
+                  unit={t('settings.unit.hours', 'hours')}
+                  error={errors['inbound.replyWindowHours']}
+                  value={draft.inbound.replyWindowHours}
+                  disabled={readOnly}
+                  onChange={(value) => set('inbound.replyWindowHours', value)}
+                />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <Field.Root
+                  name="inboundMedia.storage"
+                  hint={t(
+                    'settings.inbox.storage.hint',
+                    'Files go to the folder "MessageGate inbound" of your upload provider, or are not downloaded at all.'
+                  )}
+                >
+                  <Field.Label>{t('settings.inbox.storage', 'Inbound files')}</Field.Label>
+                  <SingleSelect
+                    value={draft.inboundMedia.storage}
+                    disabled={readOnly}
+                    onChange={(value) => set('inboundMedia.storage', value)}
+                  >
+                    <SingleSelectOption value="media-library">
+                      {t('settings.inbox.storage.library', 'Store in the media library')}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="none">
+                      {t('settings.inbox.storage.none', 'Do not store (metadata only)')}
+                    </SingleSelectOption>
+                  </SingleSelect>
+                  <Field.Hint />
+                </Field.Root>
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <NumberField
+                  name="inboundMedia.maxMb"
+                  label={t('settings.inbox.maxMb', 'Largest inbound file')}
+                  hint={t('settings.inbox.maxMb.hint', 'Larger files are refused while downloading.')}
+                  unit={t('settings.unit.mb', 'MB')}
+                  error={errors['inboundMedia.maxMb']}
+                  value={draft.inboundMedia.maxMb}
+                  disabled={readOnly}
+                  onChange={(value) => set('inboundMedia.maxMb', value)}
+                />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <NumberField
+                  name="attachments.linkTtlHours"
+                  label={t('settings.inbox.linkTtl', 'Download links in SMS are valid for')}
+                  hint={t(
+                    'settings.inbox.linkTtl.hint',
+                    'SMS cannot carry files, so they get a signed link that expires after this time.'
+                  )}
+                  unit={t('settings.unit.hours', 'hours')}
+                  error={errors['attachments.linkTtlHours']}
+                  value={draft.attachments.linkTtlHours}
+                  disabled={readOnly}
+                  onChange={(value) => set('attachments.linkTtlHours', value)}
+                />
+              </Grid.Item>
+            </Grid.Root>
+          </SectionCard>
+
+          <SectionCard
+            title={t('settings.hook', 'Outgoing webhook')}
+            subtitle={t(
+              'settings.hook.subtitle',
+              'MessageGate posts selected events to your own https URL, signed with HMAC-SHA256. No phone numbers or message text are sent.'
+            )}
+          >
+            <Grid.Root gap={4}>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <BooleanField
+                  name="outgoingWebhook.enabled"
+                  label={t('settings.hook.enabled', 'Send events to a webhook')}
+                  checked={draft.outgoingWebhook.enabled}
+                  disabled={readOnly}
+                  onCheckedChange={(value) => set('outgoingWebhook.enabled', value)}
+                />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <Field.Root
+                  name="outgoingWebhook.url"
+                  error={errors['outgoingWebhook.url']}
+                  hint={t('settings.hook.url.hint', 'Public https address. Redirects are not followed.')}
+                >
+                  <Field.Label>{t('settings.hook.url', 'Webhook URL')}</Field.Label>
+                  <TextInput
+                    type="url"
+                    value={draft.outgoingWebhook.url || ''}
+                    placeholder="https://app.example.com/hooks/messagegate"
+                    disabled={readOnly}
+                    onChange={(e) => set('outgoingWebhook.url', e.target.value.trim() || null)}
+                  />
+                  <Field.Hint />
+                  <Field.Error />
+                </Field.Root>
+              </Grid.Item>
+              {HOOK_EVENTS.map((event) => (
+                <Grid.Item key={event} col={6} xs={12} direction="column" alignItems="stretch">
+                  <BooleanField
+                    name={`outgoingWebhook.events.${event}`}
+                    label={eventLabels[event]}
+                    checked={draft.outgoingWebhook.events.includes(event)}
+                    disabled={readOnly}
+                    onCheckedChange={(on) =>
+                      set(
+                        'outgoingWebhook.events',
+                        on
+                          ? [...draft.outgoingWebhook.events, event]
+                          : draft.outgoingWebhook.events.filter((e) => e !== event)
+                      )
+                    }
+                  />
+                </Grid.Item>
+              ))}
+              <Grid.Item col={12} direction="column" alignItems="stretch" gap={3}>
+                <Typography textColor="neutral600">
+                  {data.webhookSecretSet || secret
+                    ? t(
+                        'settings.hook.secret.set',
+                        'A signing secret exists. Verify X-MessageGate-Signature with it (see AGENTS.md).'
+                      )
+                    : t('settings.hook.secret.none', 'No signing secret yet. Deliveries start after you create one.')}
+                </Typography>
+                {secret ? (
+                  <CopyField
+                    name="webhook-secret"
+                    label={t('settings.hook.secret', 'Signing secret')}
+                    value={secret}
+                    hint={t('settings.hook.secret.once', 'Shown only now. Store it in your receiver.')}
+                  />
+                ) : null}
+                {!readOnly ? (
+                  <Box>
+                    <ConfirmAction
+                      label={
+                        data.webhookSecretSet || secret
+                          ? t('settings.hook.secret.rotate', 'Replace signing secret')
+                          : t('settings.hook.secret.create', 'Create signing secret')
+                      }
+                      startIcon={<ArrowClockwise />}
+                      triggerVariant="secondary"
+                      variant="default"
+                      title={t('settings.hook.secret.title', 'Create a new signing secret?')}
+                      body={t(
+                        'settings.hook.secret.body',
+                        'The old secret stops working at once. Update your receiver right after copying the new one.'
+                      )}
+                      confirmLabel={t('settings.hook.secret.confirm', 'Create secret')}
+                      onConfirm={rotate}
+                    />
+                  </Box>
+                ) : null}
               </Grid.Item>
             </Grid.Root>
           </SectionCard>

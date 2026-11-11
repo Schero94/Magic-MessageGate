@@ -54,12 +54,22 @@ module.exports = {
     if (cfg.worker.enabled) {
       list.push(every(() => core.outbox.tick().catch(log('worker')), cfg.worker.intervalMs));
       list.push(every(() => core.outbox.maintain().catch(log('maintenance')), 30_000));
+      list.push(every(() => core.inbound.mediaTick().catch(log('media')), cfg.worker.intervalMs));
+      list.push(every(() => core.hooksOut.tick().catch(log('outgoing webhook')), cfg.worker.intervalMs));
       list.push(
         every(async () => {
           const settings = await core.settings.get();
-          await core.outbox.purge(settings.retention);
+          const done = await core.outbox.purge(settings.retention);
+          // Same retention lease: only the process that won it purges.
+          if (done) {
+            await core.inbound.purge(settings.inbound.retentionDays);
+            await core.hooksOut.purge(30);
+          }
         }, 60 * 60_000)
       );
+    }
+    if (cfg.providers.mode === 'sandbox') {
+      strapi.log.warn('[magic-messagegate] SANDBOX mode: no message leaves this server, statuses are simulated');
     }
     timers.set(strapi, list);
     strapi.log.info(`[magic-messagegate] ready (worker ${cfg.worker.enabled ? 'on' : 'off'})`);

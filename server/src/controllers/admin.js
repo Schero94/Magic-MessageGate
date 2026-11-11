@@ -15,7 +15,19 @@ const { MessageGateError } = require('../utils/errors');
 const { actionId } = require('../permissions');
 
 const id = z.string().regex(/^[a-z0-9]{6,32}$/);
-const channel = z.enum(['whatsapp', 'telegram', 'sms']);
+const channel = z.enum(['whatsapp', 'rcs', 'telegram', 'sms']);
+const { checkUrl } = require('../utils/url-guard');
+/** Inline display in the admin only for these types; everything else downloads. */
+const INLINE = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/aac',
+  'video/mp4',
+]);
 
 /**
  * @param {object} ctx
@@ -148,8 +160,10 @@ module.exports = ({ strapi }) => {
       const vars = z.record(z.string().max(60), z.string().max(1024)).optional().parse(ctx.request.body?.variables);
       return core().templates.preview(paramId(ctx), vars);
     }),
-    submitTemplate: write((ctx) => {
+    submitTemplate: write(async (ctx) => {
       const accountId = id.parse(ctx.request.body?.accountId);
+      const row = await core().templates.getRow(paramId(ctx));
+      if (row?.channel === 'rcs') return core().templates.submitToTwilio(paramId(ctx), accountId);
       return core().templates.submitToMeta(paramId(ctx), accountId);
     }),
 
@@ -157,6 +171,64 @@ module.exports = ({ strapi }) => {
     listMessages: read((ctx) => core().outbox.list(listQuery(ctx.query))),
     getMessage: read((ctx) => core().outbox.detail(paramId(ctx))),
     sendMessage: write((ctx) => core().sender.send(ctx.request.body || {}, { source: 'admin' })),
+    previewMessage: read((ctx) => core().sender.preview(ctx.request.body || {})),
+
+    // Inbox
+    listInbound: read((ctx) => {
+      const q = z
+        .object({
+          page: z.coerce.number().int().min(1).max(2000).optional(),
+          pageSize: z.coerce.number().int().min(1).max(100).optional(),
+          channel: channel.optional(),
+          kind: z.enum(['text', 'button', 'media', 'location', 'other']).optional(),
+          contactId: id.optional(),
+          processed: z.enum(['true', 'false']).optional(),
+          unread: z.enum(['true']).optional(),
+        })
+        .strip()
+        .parse(ctx.query || {});
+      return core().inbound.list({
+        ...q,
+        processed: q.processed === undefined ? undefined : q.processed === 'true',
+        unread: q.unread === 'true',
+      });
+    }),
+    inboundUnread: read(async () => ({ unread: await core().inbound.unreadCount() })),
+    getInbound: read((ctx) => core().inbound.get(paramId(ctx))),
+    inboundProcessed: write((ctx) => core().inbound.markProcessed(paramId(ctx))),
+    inboundMedia: async (ctx) =>
+      handle(
+        ctx,
+        async () => {
+          const file = await core().inbound.getMedia(paramId(ctx), { as: 'buffer' });
+          const inline = INLINE.has(file.mime) && ctx.query?.download !== 'true';
+          ctx.set('Content-Type', file.mime);
+          ctx.set('Content-Length', String(file.size));
+          ctx.set('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${file.filename}"`);
+          ctx.set('X-Content-Type-Options', 'nosniff');
+          ctx.set('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; sandbox");
+          ctx.set('Cache-Control', 'private, no-store');
+          ctx.body = file.data;
+          return undefined;
+        },
+        strapi
+      ),
+    conversation: read(async (ctx) => {
+      const contact = await core().contacts.getRow(paramId(ctx));
+      if (!contact) throw new MessageGateError('NOT_FOUND');
+      const history = await core().inbound.history(contact.document_id, { limit: 200 });
+      await core().inbound.markSeen(contact.id);
+      const lastInbound = Number(contact.last_inbound_at || 0);
+      return {
+        ...history,
+        contact: await core().contacts.dto(contact),
+        whatsappWindowOpen:
+          contact.last_inbound_channel === 'whatsapp' && core().ctx.now() - lastInbound < 24 * 3_600_000,
+        windowClosesAt:
+          contact.last_inbound_channel === 'whatsapp' && lastInbound ? lastInbound + 24 * 3_600_000 : null,
+      };
+    }),
+    replyInbound: write((ctx) => core().reply(paramId(ctx), ctx.request.body || {}, { source: 'admin' })),
     retryMessage: write((ctx) =>
       core().outbox.retry(paramId(ctx), { confirmDuplicateRisk: ctx.request.body?.confirmDuplicateRisk === true })
     ),
@@ -206,25 +278,25 @@ module.exports = ({ strapi }) => {
       return core().contacts.dto(await core().contacts.getRowById(row.id));
     }),
     telegramLink: write((ctx) => services.telegram({ strapi }).createLink(paramId(ctx))),
-    exportContact: read((ctx) => core().contacts.exportData(paramId(ctx))),
+    exportContact: read((ctx) => core().exportContact(paramId(ctx))),
     eraseContact: write(async (ctx) => {
-      await core().contacts.erase(paramId(ctx));
+      await core().eraseContact(paramId(ctx));
       return { erased: true };
     }),
 
     // Lookup, analytics, settings
     lookup: write((ctx) => {
       const body = z
-        .object({ phone: z.string().max(40), remote: z.boolean().optional() })
+        .object({ phone: z.string().max(40), remote: z.boolean().optional(), hlr: z.boolean().optional() })
         .strict()
         .parse(ctx.request.body || {});
       const remote = body.remote !== false;
-      // A remote lookup is paid and spends the shared monthly budget, so it
-      // needs the manage permission; read-only admins get the free check.
-      if (remote && !ctx.state?.userAbility?.can(actionId('contacts.manage'))) {
+      // Remote and HLR lookups are paid and spend the shared monthly budget,
+      // so they need the manage permission; read-only admins get the free check.
+      if ((remote || body.hlr) && !ctx.state?.userAbility?.can(actionId('contacts.manage'))) {
         throw new MessageGateError('FORBIDDEN');
       }
-      return core().lookup.check(body.phone, { remote });
+      return core().lookup.check(body.phone, { remote, hlr: body.hlr === true, rcs: true });
     }),
     lookupBudget: read(() => core().lookup.budgetStatus()),
     analytics: read((ctx) => {
@@ -243,6 +315,8 @@ module.exports = ({ strapi }) => {
         settings: value,
         revision,
         magicMailInstalled: Boolean(core().ctx.magicMail),
+        sandbox: core().ctx.config.providers.mode === 'sandbox',
+        webhookSecretSet: await core().hooksOut.hasSecret(),
         publicUrl: core().ctx.publicUrl || null,
         embeddedSignup: signupInfo(),
       };
@@ -252,8 +326,14 @@ module.exports = ({ strapi }) => {
         .object({ settings: z.record(z.string(), z.unknown()), revision: z.number().int().min(0) })
         .strict()
         .parse(ctx.request.body || {});
+      const hook = body.settings?.outgoingWebhook;
+      if (hook && typeof hook === 'object' && hook.url && !core().ctx.config.outgoingWebhooks.allowPrivateHosts) {
+        if (!checkUrl(hook.url).ok) throw new MessageGateError('WEBHOOK_URL_INVALID');
+      }
       return core().settings.save(body.settings, body.revision);
     }),
+    // The signing secret is shown once; POST keeps it out of caches and logs.
+    rotateWebhookSecret: write(() => core().hooksOut.rotateSecret()),
   };
 };
 

@@ -83,9 +83,10 @@ async function makeCore(options = {}) {
     emit: (name, payload) => events.push({ name, payload }),
     now: options.now,
     random: () => 0.5,
-    fetchImpl: loopbackFetch,
+    fetchImpl: options.fetchImpl || loopbackFetch,
     magicMail: options.magicMail,
     nodeId: options.nodeId,
+    files: options.files,
   });
   await core.init();
   core.events = events;

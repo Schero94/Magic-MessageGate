@@ -8,7 +8,9 @@ module.exports = ({ env }) => ({
       encryptionKey: env('MG_ENCRYPTION_KEY'),
       publicUrl: `http://127.0.0.1:${env('MG_CLUSTER_BALANCER_PORT', '1480')}`,
       worker: { intervalMs: 1000 },
-      rateLimits: { adminWritePerMinute: 5000, sendPerMinute: 5000 },
+      rateLimits: { adminWritePerMinute: 5000, sendPerMinute: 5000, inboundPerMinute: 5000 },
+      // The outgoing webhook receiver is the local fake server.
+      outgoingWebhooks: { allowPrivateHosts: true },
       providers: {
         meta: {
           baseUrl: `${fake}/meta`,
@@ -21,7 +23,7 @@ module.exports = ({ env }) => ({
         },
         telegram: { baseUrl: `${fake}/telegram` },
         seven: { baseUrl: `${fake}/seven` },
-        twilio: { baseUrl: `${fake}/twilio`, lookupBaseUrl: `${fake}/lookup` },
+        twilio: { baseUrl: `${fake}/twilio`, lookupBaseUrl: `${fake}/lookup`, contentBaseUrl: `${fake}/content` },
       },
     },
   },

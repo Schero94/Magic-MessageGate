@@ -25,3 +25,13 @@ await build({
   outfile: 'dist/server/index.mjs',
   banner: { js: "import { createRequire } from 'node:module';const require = createRequire(import.meta.url);" },
 });
+
+// Test helpers: `strapi-plugin-magic-messagegate/testing`.
+const testing = { ...base, entryPoints: ['server/src/testing/index.js'] };
+await build({ ...testing, format: 'cjs', outfile: 'dist/testing/index.js' });
+await build({
+  ...testing,
+  format: 'esm',
+  outfile: 'dist/testing/index.mjs',
+  banner: { js: "import { createRequire } from 'node:module';const require = createRequire(import.meta.url);" },
+});

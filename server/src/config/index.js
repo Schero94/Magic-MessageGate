@@ -55,11 +55,24 @@ const schema = z
         webhookPerMinute: z.number().int().min(10).max(1_000_000).default(1_200),
         adminWritePerMinute: z.number().int().min(1).max(10_000).default(60),
         lookupPerMinute: z.number().int().min(1).max(10_000).default(30),
+        // Signed attachment downloads per client IP (public route).
+        downloadPerMinute: z.number().int().min(1).max(10_000).default(60),
+        // Content API reads of inbound messages, files and conversations per token.
+        inboundPerMinute: z.number().int().min(1).max(100_000).default(300),
       })
+      .strict()
+      .prefault({}),
+    // Development and tests only: lets the outgoing webhook call private or
+    // http URLs (a local receiver). Never enable in production.
+    outgoingWebhooks: z
+      .object({ allowPrivateHosts: z.boolean().default(false) })
       .strict()
       .prefault({}),
     providers: z
       .object({
+        // 'sandbox' replaces every provider with a deterministic in-process
+        // fake (no network, no cost) for app tests and CI; see AGENTS.md.
+        mode: z.enum(['live', 'sandbox']).default('live'),
         meta: z
           .object({
             baseUrl: url.optional(),
@@ -94,7 +107,10 @@ const schema = z
           .prefault({}),
         telegram: z.object({ baseUrl: url.optional(), timeoutMs }).strict().prefault({}),
         seven: z.object({ baseUrl: url.optional(), timeoutMs }).strict().prefault({}),
-        twilio: z.object({ baseUrl: url.optional(), lookupBaseUrl: url.optional(), timeoutMs }).strict().prefault({}),
+        twilio: z
+          .object({ baseUrl: url.optional(), lookupBaseUrl: url.optional(), contentBaseUrl: url.optional(), timeoutMs })
+          .strict()
+          .prefault({}),
       })
       .strict()
       .prefault({}),

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Box, Button, Field, Flex, Grid, Modal, TextInput, Typography } from '@strapi/design-system';
-import { ArrowLeft, Check, Cross, Eye, Message, Paperclip, PaperPlane, Phone } from '@strapi/icons';
+import { ArrowLeft, Check, Cross, Eye, Message, Paperclip, PaperPlane, Phone, Sparkle } from '@strapi/icons';
 
 import { BooleanField } from '../../components/ui/BooleanField';
 import { CopyField } from '../../components/ui/CopyField';
@@ -12,12 +12,19 @@ import { useLoad } from '../../hooks/useLoad';
 import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { apiError, errorMessage } from '../../utils/apiError';
-import { providerLabels } from '../../utils/channels';
-import { PROVIDER_CHANNEL, PROVIDER_FIELDS, credentialPayload, validateCredentials } from '../../utils/providers.mjs';
+import { channelLabels, providerLabels } from '../../utils/channels';
+import {
+  CONNECT_OPTIONS,
+  PROVIDER_CHANNEL,
+  credentialPayload,
+  fieldsFor,
+  validateCredentials,
+} from '../../utils/providers.mjs';
 import { reasonText } from '../../utils/reasons';
 
 /**
- * Translated label and hint per credential field. Hints say where the value is found.
+ * Translated label and hint per credential field. Hints say where the value is
+ * found. Keys `channel:field` override a field's texts on that channel.
  *
  * @param {(id: string, def: string) => string} t - Translator.
  * @returns {Record<string, {label: string, hint: string}>} Texts.
@@ -70,6 +77,69 @@ const fieldTexts = (t) => ({
   messagingServiceSid: {
     label: t('accounts.field.messagingServiceSid', 'Messaging service SID'),
     hint: t('accounts.field.messagingServiceSid.hint', 'Optional instead of a sender number.'),
+  },
+  apiKeySid: {
+    label: t('accounts.field.apiKeySid', 'API key SID (optional)'),
+    hint: t('accounts.field.apiKeySid.hint', 'Twilio Console > API keys. Used instead of the auth token to send.'),
+  },
+  apiKeySecret: {
+    label: t('accounts.field.apiKeySecret', 'API key secret (optional)'),
+    hint: t('accounts.field.apiKeySecret.hint', 'Shown once when the API key is created.'),
+  },
+  appId: {
+    label: t('accounts.field.appId', 'App ID (optional)'),
+    hint: t('accounts.field.appId.hint', 'Meta app ID, needed to upload sample files for media templates.'),
+  },
+  'rcs:messagingServiceSid': {
+    label: t('accounts.field.messagingServiceSid', 'Messaging service SID'),
+    hint: t(
+      'accounts.field.rcs.messagingServiceSid.hint',
+      'The Messaging Service that contains your approved RCS sender.'
+    ),
+  },
+  twilioFallback: {
+    label: t('accounts.field.twilioFallback', 'Let Twilio fall back to SMS by itself'),
+    hint: t(
+      'accounts.field.twilioFallback.hint',
+      "Off: MessageGate's routing chain decides the next channel (recommended)."
+    ),
+  },
+});
+
+/**
+ * Icon, title and description of each "Connect a channel" option.
+ *
+ * @param {(id: string, def: string) => string} t - Translator.
+ * @returns {Record<string, {icon: JSX.Element, title: string, text: string}>} Tiles by option id.
+ */
+const optionTexts = (t) => ({
+  whatsapp: {
+    icon: <Message fill="primary600" />,
+    title: t('channel.whatsapp', 'WhatsApp'),
+    text: t('accounts.wizard.whatsapp', 'Official Cloud API by Meta. Templates, delivery and read receipts.'),
+  },
+  rcs: {
+    icon: <Sparkle fill="primary600" />,
+    title: t('accounts.wizard.rcs', 'RCS with Twilio'),
+    text: t(
+      'accounts.wizard.rcs.text',
+      'Rich messages with images and buttons on Android, through Twilio. Falls back to SMS.'
+    ),
+  },
+  telegram: {
+    icon: <PaperPlane fill="primary600" />,
+    title: t('channel.telegram', 'Telegram'),
+    text: t('accounts.wizard.telegram', 'A bot from @BotFather. Free, contacts link once.'),
+  },
+  seven: {
+    icon: <Phone fill="primary600" />,
+    title: t('accounts.wizard.seven', 'SMS with seven.io'),
+    text: t('accounts.wizard.seven.text', 'German provider, servers in the EU.'),
+  },
+  twilio: {
+    icon: <Phone fill="primary600" />,
+    title: t('accounts.wizard.twilio', 'SMS with Twilio'),
+    text: t('accounts.wizard.twilio.text', 'Worldwide SMS, also used for number lookups.'),
   },
 });
 
@@ -137,11 +207,14 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
   const api = useApi();
   const act = useAction();
   const providers = providerLabels(t);
+  const channels = channelLabels(t);
   const texts = fieldTexts(t);
+  const options = optionTexts(t);
   const [current, setCurrent] = useState(mode === 'edit' ? account : null);
   const editing = Boolean(current);
   const [step, setStep] = useState(editing ? 'credentials' : 'channel');
   const [provider, setProvider] = useState(account?.provider || null);
+  const [channel, setChannel] = useState(account?.channel || null);
   const [form, setForm] = useState(() => ({
     name: account?.name || '',
     isDefault: account?.isDefault ?? false,
@@ -165,15 +238,22 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
     requestAnimationFrame(() => titleRef.current?.focus());
   };
 
-  const choose = (next) => {
-    setProvider(next);
+  /**
+   * @param {{channel: string, provider: string}} option - Chosen channel and provider.
+   * @returns {void}
+   */
+  const choose = (option) => {
+    setProvider(option.provider);
+    setChannel(option.channel);
     setForm((prev) => ({
       ...prev,
-      name: prev.name || providers[next],
-      isDefault: !hasDefault(PROVIDER_CHANNEL[next]),
+      name:
+        prev.name || (option.channel === 'rcs' ? `${channels.rcs} · ${providers.twilio}` : providers[option.provider]),
+      isDefault: !hasDefault(option.channel),
     }));
-    go(next === 'meta' && signupConfig?.enabled ? 'whatsapp' : 'credentials');
+    go(option.provider === 'meta' && signupConfig?.enabled ? 'whatsapp' : 'credentials');
   };
+  const activeChannel = channel || PROVIDER_CHANNEL[provider];
 
   const messages = {
     required: t('form.required', 'This field is required.'),
@@ -195,7 +275,7 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
 
   const save = async (event) => {
     event.preventDefault();
-    const found = validateCredentials(provider, form.values, current?.secretsSet);
+    const found = validateCredentials(provider, form.values, current?.secretsSet, activeChannel);
     if (!form.name.trim()) found.name = 'required';
     if (Object.keys(found).length) {
       setErrors(Object.fromEntries(Object.entries(found).map(([key, code]) => [key, messages[code]])));
@@ -207,14 +287,14 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
       name: form.name.trim(),
       isDefault: form.isDefault,
       isActive: form.isActive,
-      config: credentialPayload(provider, form.values),
+      config: credentialPayload(provider, form.values, activeChannel),
     };
     setBusy(true);
     try {
       const saved = await act(() =>
         editing
           ? api.put(`/accounts/${current.id}`, body)
-          : api.post('/accounts', { ...body, channel: PROVIDER_CHANNEL[provider], provider })
+          : api.post('/accounts', { ...body, channel: activeChannel, provider })
       );
       await testAndFinish(saved);
     } catch (error) {
@@ -322,42 +402,17 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
                   {t('accounts.wizard.choose', 'Which channel do you want to connect?')}
                 </Typography>
                 <Grid.Root gap={3}>
-                  <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
-                    <ChoiceTile
-                      autoFocus
-                      icon={<Message fill="primary600" />}
-                      title={t('channel.whatsapp', 'WhatsApp')}
-                      text={t(
-                        'accounts.wizard.whatsapp',
-                        'Official Cloud API by Meta. Templates, delivery and read receipts.'
-                      )}
-                      onClick={() => choose('meta')}
-                    />
-                  </Grid.Item>
-                  <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
-                    <ChoiceTile
-                      icon={<PaperPlane fill="primary600" />}
-                      title={t('channel.telegram', 'Telegram')}
-                      text={t('accounts.wizard.telegram', 'A bot from @BotFather. Free, contacts link once.')}
-                      onClick={() => choose('telegram')}
-                    />
-                  </Grid.Item>
-                  <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
-                    <ChoiceTile
-                      icon={<Phone fill="primary600" />}
-                      title={t('accounts.wizard.seven', 'SMS with seven.io')}
-                      text={t('accounts.wizard.seven.text', 'German provider, servers in the EU.')}
-                      onClick={() => choose('seven')}
-                    />
-                  </Grid.Item>
-                  <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
-                    <ChoiceTile
-                      icon={<Phone fill="primary600" />}
-                      title={t('accounts.wizard.twilio', 'SMS with Twilio')}
-                      text={t('accounts.wizard.twilio.text', 'Worldwide SMS, also used for number lookups.')}
-                      onClick={() => choose('twilio')}
-                    />
-                  </Grid.Item>
+                  {CONNECT_OPTIONS.map((option, index) => (
+                    <Grid.Item key={option.id} col={6} xs={12} direction="column" alignItems="stretch">
+                      <ChoiceTile
+                        autoFocus={index === 0}
+                        icon={options[option.id].icon}
+                        title={options[option.id].title}
+                        text={options[option.id].text}
+                        onClick={() => choose(option)}
+                      />
+                    </Grid.Item>
+                  ))}
                 </Grid.Root>
               </Flex>
             ) : null}
@@ -416,7 +471,9 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
 
             {step === 'credentials' && provider ? (
               <Flex direction="column" alignItems="stretch" gap={5}>
-                <Typography textColor="neutral600">{providers[provider]}</Typography>
+                <Typography textColor="neutral600">
+                  {activeChannel === 'rcs' ? `${channels.rcs} · ${providers[provider]}` : providers[provider]}
+                </Typography>
                 <Grid.Root gap={4}>
                   <Grid.Item col={12} direction="column" alignItems="stretch">
                     <Field.Root
@@ -438,7 +495,22 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
                       <Field.Error />
                     </Field.Root>
                   </Grid.Item>
-                  {PROVIDER_FIELDS[provider].map((field) => {
+                  {fieldsFor(provider, activeChannel).map((field) => {
+                    const text = texts[`${activeChannel}:${field.name}`] || texts[field.name];
+                    if (field.type === 'boolean')
+                      return (
+                        <Grid.Item key={field.name} col={12} direction="column" alignItems="stretch">
+                          <BooleanField
+                            name={field.name}
+                            label={text?.label || field.name}
+                            hint={text?.hint}
+                            checked={form.values[field.name] === true}
+                            onCheckedChange={(value) =>
+                              setForm((prev) => ({ ...prev, values: { ...prev.values, [field.name]: value } }))
+                            }
+                          />
+                        </Grid.Item>
+                      );
                     const stored = field.secret && current?.secretsSet?.[field.name];
                     return (
                       <Grid.Item key={field.name} col={6} xs={12} direction="column" alignItems="stretch">
@@ -446,13 +518,9 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
                           name={field.name}
                           required={field.required && !stored}
                           error={errors[field.name]}
-                          hint={
-                            stored
-                              ? t('accounts.field.stored', 'Stored. Leave empty to keep it.')
-                              : texts[field.name]?.hint
-                          }
+                          hint={stored ? t('accounts.field.stored', 'Stored. Leave empty to keep it.') : text?.hint}
                         >
-                          <Field.Label>{texts[field.name]?.label || field.name}</Field.Label>
+                          <Field.Label>{text?.label || field.name}</Field.Label>
                           <TextInput
                             name={field.name}
                             type={field.secret ? 'password' : 'text'}
@@ -587,6 +655,7 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
                 variant="secondary"
                 onClick={() => {
                   setProvider(result.account.provider);
+                  setChannel(result.account.channel);
                   go('credentials');
                 }}
               >

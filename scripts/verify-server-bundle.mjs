@@ -39,9 +39,18 @@ for (const [format, mod] of [
     }
   }
   for (const route of apiRoutes) {
-    if (route.config?.auth === false && !route.path.startsWith('/webhooks/')) {
+    if (route.config?.auth === false && !route.path.startsWith('/webhooks/') && route.path !== '/files/:token') {
       fail(format, `public route ${route.method} ${route.path} is not a webhook`);
     }
   }
 }
-console.log('Magic MessageGate server bundles load; routes, RBAC and config verified');
+for (const [format, mod] of [
+  ['cjs', require('../dist/testing/index.js')],
+  ['esm', await import('../dist/testing/index.mjs')],
+]) {
+  const testing = mod.default || mod;
+  if (typeof testing.sandboxConfig !== 'function' || !testing.SANDBOX_NUMBERS?.read) {
+    fail(format, 'testing bundle lacks sandboxConfig or SANDBOX_NUMBERS');
+  }
+}
+console.log('Magic MessageGate server and testing bundles load; routes, RBAC and config verified');
