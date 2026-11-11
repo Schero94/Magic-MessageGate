@@ -61,7 +61,13 @@ function listQuery(query = {}) {
         .optional(),
       from: z.coerce.number().int().positive().optional(),
       to: z.coerce.number().int().positive().optional(),
-      phone: z.string().max(40).optional(),
+      // The admin fetch client sends query values unencoded, so a leading "+"
+      // arrives as a space; restore it before parsing the number.
+      phone: z
+        .string()
+        .max(40)
+        .transform((v) => v.replace(/^ (?=\d)/, '+'))
+        .optional(),
       search: z.string().max(60).optional(),
     })
     .strip();
@@ -243,3 +249,6 @@ module.exports = ({ strapi }) => {
     }),
   };
 };
+
+// Exposed for tests.
+module.exports.listQuery = listQuery;

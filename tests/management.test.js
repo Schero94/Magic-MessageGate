@@ -256,3 +256,9 @@ test('analytics: totals, delivery and read rates, failures, queue', async () => 
   assert.deepEqual(summary.fallbacks, { total: 0, byChannel: {} });
   assert.equal(typeof summary.costCategories, 'object');
 });
+
+test('admin list query: a phone "+" sent unencoded (decoded as a space) is restored', () => {
+  const { listQuery } = require('../server/src/controllers/admin');
+  assert.equal(listQuery({ phone: ' 4915550100002' }).phone, '+4915550100002');
+  assert.equal(listQuery({ phone: '015550100002' }).phone, '015550100002');
+});
