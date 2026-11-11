@@ -340,7 +340,7 @@ Telegram sends end as `sent`. Templates submitted to Meta or Twilio are approved
 
 Settings → Outgoing webhook: an https URL (public host, no redirects; checked again before every delivery) and the events to forward: `message.received`, `message.status` (sent, delivered, read, failed, uncertain, expired), `media.ready`, `media.failed`. **Create signing secret** shows the secret once.
 
-Each delivery is a POST with the JSON body `{ id, event, data, at }` (`data` is the event payload: ids, channel, status, codes; never phone numbers or text) and the headers `X-MessageGate-Event`, `X-MessageGate-Delivery`, `X-MessageGate-Timestamp` (unix seconds) and `X-MessageGate-Signature: v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`. A `2xx` answer ends it; otherwise it is retried after 1, 5 and 15 minutes, 1 and 6 hours (6 tries). Deliveries are rows claimed with a lease, so each one is sent by one process. Verify like this:
+Each delivery is a POST with the JSON body `{ id, event, data, at }` (`data` is the event payload: ids, channel, status, codes; never phone numbers or text) and the headers `X-MessageGate-Event`, `X-MessageGate-Delivery`, `X-MessageGate-Timestamp` (unix seconds) and `X-MessageGate-Signature: v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`. A `2xx` answer ends it; otherwise it is retried after 1, 5 and 15 minutes, 1 and 6 hours (6 tries). Deliveries are rows claimed with a lease, so each one is sent by one process. Settings changes reach every process within about 3 seconds; events in that time use the previous settings. Verify like this:
 
 ```js
 const crypto = require('node:crypto');

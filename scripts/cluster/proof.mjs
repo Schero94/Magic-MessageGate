@@ -363,6 +363,8 @@ await mg('POST', '/templates', {
     },
   });
 }
+// Every process re-reads the settings at most every 3 seconds.
+await sleep(4000);
 const rcsPhones = Array.from({ length: 20 }, (_, i) => phone(N + 40 + i));
 await pool(rcsPhones, 10, async (p) => {
   for (const channel of ['whatsapp', 'rcs', 'sms'])
@@ -501,9 +503,10 @@ log(
   });
 }
 const { secret: hookSecret } = await mg('POST', '/settings/webhook-secret');
+await sleep(4000);
 const inboundPhones = phones.slice(1, 41);
 const inboundIds = inboundPhones.map(() => `wamid.IN11${crypto.randomBytes(8).toString('hex')}`);
-const contextFor = new Map(metaSends.map((x) => [x.to, x.id]));
+const contextFor = new Map(metaSends.map((x) => [String(x.to).replace('+', ''), x.id]));
 const inboundMessage = (p, i) => {
   const base = { from: p.replace('+', ''), id: inboundIds[i], timestamp: String(Math.floor(Date.now() / 1000)) };
   const context = contextFor.get(p.replace('+', ''))
@@ -590,7 +593,7 @@ log(
 
 // 5) Maintenance lease: exactly one holder.
 await sleep(35_000);
-log(`leases: ${await sql(`select claim_key, holder from mg_claims order by claim_key`).replace(/\n/g, ', ')}`);
+log(`leases: ${(await sql(`select claim_key, holder from mg_claims order by claim_key`)).replace(/\n/g, ', ')}`);
 
 const resultFile = env.MG_CLUSTER_RESULT || path.join(os.tmpdir(), 'messagegate-cluster-result.txt');
 fs.writeFileSync(resultFile, report.join('\n') + '\n');

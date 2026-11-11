@@ -666,7 +666,7 @@
   "settings.hook.url": "URL du webhook",
   "settings.hook.url.hint": "Adresse https publique. Les redirections ne sont pas suivies.",
   "settings.inbox": "Boîte de réception et fichiers",
-  "settings.inbox.linkTtl": "Les liens de téléchargement par SMS sont valables",
+  "settings.inbox.linkTtl": "Validité des liens SMS",
   "settings.inbox.linkTtl.hint": "Le SMS ne transporte pas de fichiers : il reçoit un lien signé qui expire après ce délai.",
   "settings.inbox.maxMb": "Fichier entrant le plus grand",
   "settings.inbox.maxMb.hint": "Les fichiers plus grands sont refusés pendant le téléchargement.",
