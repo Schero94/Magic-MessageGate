@@ -1,6 +1,6 @@
 {
   "name": "strapi-plugin-magic-messagegate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Send template messages over WhatsApp, Telegram and SMS from Strapi 5, with a durable outbox, delivery and read tracking, consent and fallback.",
   "keywords": [
     "strapi",

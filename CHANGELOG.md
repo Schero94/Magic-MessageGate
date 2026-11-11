@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.0.0...messagegate-v1.0.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **release:** publish the package with public access ([#2](https://github.com/Schero94/Magic-MessageGate/issues/2)) ([1295a68](https://github.com/Schero94/Magic-MessageGate/commit/1295a682ff2aef42776faf2765a9534dcf302031))
+
 # 1.0.0 (2026-11-11)
 
 
