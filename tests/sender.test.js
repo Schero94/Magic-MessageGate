@@ -224,3 +224,11 @@ test('send by userId uses the linked contact', async () => {
   });
   assert.equal(res.status, 'queued');
 });
+
+test('send: bounded variables and metadata (no huge maps)', async () => {
+  const { sendSchema } = require('../server/src/core/sender');
+  const many = Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`v${i}`, 'x']));
+  assert.equal(sendSchema.safeParse({ to: '+4915123456789', text: 'hi', variables: many }).success, false);
+  const meta = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`m${i}`, 1]));
+  assert.equal(sendSchema.safeParse({ to: '+4915123456789', text: 'hi', metadata: meta }).success, false);
+});

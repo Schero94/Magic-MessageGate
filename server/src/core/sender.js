@@ -24,7 +24,10 @@ const sendSchema = z
       .string()
       .regex(/^[a-z]{2,3}(_[A-Z]{2})?$/)
       .optional(),
-    variables: z.record(z.string().max(60), z.union([z.string().max(1024), z.number(), z.boolean()])).optional(),
+    variables: z
+      .record(z.string().max(60), z.union([z.string().max(1024), z.number(), z.boolean()]))
+      .refine((o) => Object.keys(o).length <= 50, { message: 'at most 50 variables' })
+      .optional(),
     text: z.string().trim().min(1).max(4096).optional(),
     idempotencyKey: z.string().trim().min(1).max(200).optional(),
     notAfter: z.union([z.date(), z.string().datetime({ offset: true }), z.number().int().positive()]).optional(),
@@ -34,6 +37,7 @@ const sendSchema = z
     priority: z.enum(['high', 'normal', 'low']).default('normal'),
     metadata: z
       .record(z.string().max(60), z.union([z.string().max(500), z.number(), z.boolean(), z.null()]))
+      .refine((o) => Object.keys(o).length <= 20, { message: 'at most 20 metadata keys' })
       .optional(),
   })
   .strict()
