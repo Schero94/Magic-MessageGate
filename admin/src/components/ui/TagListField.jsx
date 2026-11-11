@@ -84,8 +84,8 @@ export const TagListField = ({ name, kind, label, hint, placeholder, error, valu
     <Flex direction="column" alignItems="stretch" gap={2}>
       <Field.Root name={name} hint={hint} error={entryError || error}>
         <Field.Label>{label}</Field.Label>
-        <Flex gap={2} alignItems="flex-start">
-          <Box flex="1 1 0" minWidth={0}>
+        <Flex gap={2} alignItems="flex-start" wrap="wrap">
+          <Box flex="1 1 18rem" minWidth={0}>
             <TextInput
               ref={inputRef}
               value={input}

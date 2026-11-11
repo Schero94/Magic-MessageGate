@@ -427,6 +427,7 @@
   "range.today": "Hoy",
   "reason.AMBIGUOUS": "El proveedor no respondió a tiempo. Puede que el mensaje se haya enviado o no.",
   "reason.EMAIL_FAILED": "Falló la alternativa por correo con Magic Mail.",
+  "reason.HTTP_401": "El proveedor rechazó las credenciales. Revísalas y vuelve a probar.",
   "reason.META_130429": "Se alcanzó el límite de rendimiento de WhatsApp. MessageGate lo reintentará más tarde.",
   "reason.META_131026": "El número no puede recibir mensajes de WhatsApp (no está en WhatsApp o tiene una app antigua).",
   "reason.META_131047": "Han pasado más de 24 horas desde el último mensaje del contacto. Solo se pueden enviar plantillas.",

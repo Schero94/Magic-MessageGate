@@ -8,7 +8,13 @@
  */
 export function reasonText(t, code) {
   if (!code) return null;
+  // Network failures while a send was in flight (undici/Node socket errors).
+  if (/^(UND_ERR_|ECONNRESET$|ETIMEDOUT$|EPIPE$|ECONNABORTED$)/.test(code))
+    return t('reason.AMBIGUOUS', 'The provider did not answer in time. The message may or may not have been sent.');
   switch (code) {
+    case 'HTTP_401':
+    case 'HTTP_403':
+      return t('reason.HTTP_401', 'The provider rejected the credentials. Check them and test again.');
     case 'META_131026':
       return t('reason.META_131026', 'The number cannot receive WhatsApp messages (not on WhatsApp or an old app).');
     case 'META_131047':

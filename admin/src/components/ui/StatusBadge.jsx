@@ -3,7 +3,8 @@ import { useT } from '../../hooks/useT';
 import { APPROVAL_VARIANT, STATUS_VARIANT, approvalLabels, statusLabels } from '../../utils/channels';
 
 /**
- * DS Badge with explicit theme tokens (tone100 background, tone700 text).
+ * DS Badge with explicit theme tokens (tone100 background, tone700 text;
+ * warning700 on warning100 is 4.03:1, so warning uses neutral800 text).
  * The default variant colours of DS 2.2.4 Badge measure below 4.5:1 for
  * warning and danger in light mode and primary and danger in dark mode;
  * these token pairs pass in both themes.
@@ -12,7 +13,10 @@ import { APPROVAL_VARIANT, STATUS_VARIANT, approvalLabels, statusLabels } from '
  * @returns {JSX.Element} Badge.
  */
 export const ToneBadge = ({ tone = 'neutral', children }) => (
-  <Badge backgroundColor={tone === 'neutral' ? 'neutral150' : `${tone}100`} textColor={`${tone}700`}>
+  <Badge
+    backgroundColor={tone === 'neutral' ? 'neutral150' : `${tone}100`}
+    textColor={tone === 'warning' ? 'neutral800' : `${tone}700`}
+  >
     {children}
   </Badge>
 );

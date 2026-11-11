@@ -427,6 +427,7 @@
   "range.today": "Aujourd'hui",
   "reason.AMBIGUOUS": "Le fournisseur n'a pas répondu à temps. Le message a peut-être été envoyé, ou pas.",
   "reason.EMAIL_FAILED": "Le repli par e-mail via Magic Mail a échoué.",
+  "reason.HTTP_401": "Le fournisseur a refusé les identifiants. Vérifiez-les et testez à nouveau.",
   "reason.META_130429": "La limite de débit WhatsApp est atteinte. MessageGate réessaiera plus tard.",
   "reason.META_131026": "Le numéro ne peut pas recevoir de messages WhatsApp (pas sur WhatsApp ou app trop ancienne).",
   "reason.META_131047": "Plus de 24 heures depuis le dernier message du contact. Seuls les modèles sont possibles.",

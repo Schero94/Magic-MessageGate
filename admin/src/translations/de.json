@@ -427,6 +427,7 @@
   "range.today": "Heute",
   "reason.AMBIGUOUS": "Der Anbieter hat nicht rechtzeitig geantwortet. Die Nachricht wurde vielleicht gesendet, vielleicht nicht.",
   "reason.EMAIL_FAILED": "Der E-Mail-Fallback über Magic Mail ist fehlgeschlagen.",
+  "reason.HTTP_401": "Der Anbieter hat die Zugangsdaten abgelehnt. Prüfen und erneut testen.",
   "reason.META_130429": "Das WhatsApp-Durchsatzlimit ist erreicht. MessageGate versucht es später erneut.",
   "reason.META_131026": "Die Nummer kann keine WhatsApp-Nachrichten empfangen (nicht auf WhatsApp oder alte App).",
   "reason.META_131047": "Mehr als 24 Stunden seit der letzten Nachricht des Kontakts. Nur Vorlagen sind möglich.",

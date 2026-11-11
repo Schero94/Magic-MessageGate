@@ -312,6 +312,7 @@ export const ContactDetailModal = ({ id, onClose, onChanged }) => {
                     'The number, consents, blocks and all message contents are deleted. Statistics stay without personal data. This cannot be undone.'
                   )}
                   confirmLabel={t('contact.erase.confirm', 'Erase contact')}
+                  size="S"
                   onConfirm={erase}
                 />
               ) : null}

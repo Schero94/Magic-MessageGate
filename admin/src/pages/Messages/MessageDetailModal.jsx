@@ -346,6 +346,7 @@ export const MessageDetailModal = ({ id, onClose, onChanged }) => {
                     'MessageGate stops trying and deletes the stored content. This cannot be undone.'
                   )}
                   confirmLabel={t('message.discard.confirm', 'Discard')}
+                  size="S"
                   onConfirm={discard}
                 />
               ) : null}
@@ -361,6 +362,7 @@ export const MessageDetailModal = ({ id, onClose, onChanged }) => {
                     'Use this when you know the contact received it, for example after checking the provider console. MessageGate will not retry it.'
                   )}
                   confirmLabel={t('message.markSent.confirm', 'Mark as sent')}
+                  size="S"
                   onConfirm={markSent}
                 />
               ) : null}

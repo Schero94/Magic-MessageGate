@@ -427,6 +427,7 @@
   "range.today": "Today",
   "reason.AMBIGUOUS": "The provider did not answer in time. The message may or may not have been sent.",
   "reason.EMAIL_FAILED": "The email fallback through Magic Mail failed.",
+  "reason.HTTP_401": "The provider rejected the credentials. Check them and test again.",
   "reason.META_130429": "The WhatsApp throughput limit was reached. MessageGate retries later.",
   "reason.META_131026": "The number cannot receive WhatsApp messages (not on WhatsApp or an old app).",
   "reason.META_131047": "More than 24 hours since the last message from the contact. Only templates can be sent.",

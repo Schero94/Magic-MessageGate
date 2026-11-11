@@ -19,6 +19,7 @@ import { channelLabels, providerLabels } from '../../utils/channels';
 import { reasonText } from '../../utils/reasons';
 import { AccountWizard } from './AccountWizard';
 
+const CHANNEL_ORDER = ['whatsapp', 'telegram', 'sms'];
 const HEALTH_VARIANT = { ok: 'success', error: 'danger', unknown: 'neutral' };
 
 /**
@@ -186,6 +187,7 @@ const AccountCard = ({ account, rbac, onEdit, onChanged }) => {
                     'Messages can no longer be sent with this account and its credentials are erased. Queued messages use another account of the channel or fail. This cannot be undone.'
                   )}
                   confirmLabel={t('accounts.delete.confirm', 'Delete account')}
+                  size="S"
                   onConfirm={remove}
                 />
               </>
@@ -246,19 +248,23 @@ export const AccountsPage = () => {
         />
       ) : (
         <Grid.Root gap={4}>
-          {data.map((account) => (
-            <Grid.Item key={account.id} col={6} xs={12} direction="column" alignItems="stretch">
-              <AccountCard
-                account={account}
-                rbac={rbac}
-                onEdit={() => {
-                  focus.remember();
-                  setWizard({ mode: 'edit', account });
-                }}
-                onChanged={reload}
-              />
-            </Grid.Item>
-          ))}
+          {[...data]
+            .sort(
+              (a, b) => CHANNEL_ORDER.indexOf(a.channel) - CHANNEL_ORDER.indexOf(b.channel) || a.priority - b.priority
+            )
+            .map((account) => (
+              <Grid.Item key={account.id} col={6} xs={12} direction="column" alignItems="stretch">
+                <AccountCard
+                  account={account}
+                  rbac={rbac}
+                  onEdit={() => {
+                    focus.remember();
+                    setWizard({ mode: 'edit', account });
+                  }}
+                  onChanged={reload}
+                />
+              </Grid.Item>
+            ))}
         </Grid.Root>
       )}
       {wizard ? (
