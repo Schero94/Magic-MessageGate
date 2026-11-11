@@ -1,6 +1,6 @@
 {
   "name": "strapi-plugin-magic-messagegate",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Send and receive WhatsApp, RCS, Telegram and SMS messages from Strapi 5: templates, attachments, durable outbox, delivery and read tracking, inbound messages and files, consent and fallback.",
   "keywords": [
     "strapi",

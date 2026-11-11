@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [1.1.0](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.0.1...messagegate-v1.1.0) (2026-11-11)
+
+
+### Features
+
+* RCS, attachments, number checks and test APIs (1.1.0) ([#3](https://github.com/Schero94/Magic-MessageGate/issues/3)) ([a1c43cf](https://github.com/Schero94/Magic-MessageGate/commit/a1c43cf9059b4d09c159c910ff2e73da18289818))
+
 
 ### Features
 
