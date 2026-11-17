@@ -106,9 +106,25 @@ test('the release job runs the full gate and publishes with OIDC, a token fallba
   assert.ok(text.indexOf('npm audit --omit=dev') < text.indexOf('npx --no-install semantic-release'));
 });
 
-test('CI covers Node 22 and 24 and a digest-pinned PostgreSQL 16 service for test:pg', () => {
+test('CI covers every Node major in engines, the Strapi peer floor and a digest-pinned PostgreSQL 16 service', () => {
   const text = readText('.github/workflows/ci.yml');
-  assert.match(text, /node: \['22', '24'\]/);
+  const pkg = JSON.parse(readText('package.json'));
+  // Node majors engines.node allows: "^22.21.0 || >=24.9.0 <=26.x.x" -> 22, 24, 25, 26; odd majors are not LTS.
+  const majors = [...pkg.engines.node.matchAll(/(\d+)\.(?:\d+|x)\.(?:\d+|x)/g)].map((m) => Number(m[1]));
+  const lts = [];
+  for (let major = Math.min(...majors); major <= Math.max(...majors); major += 2) lts.push(String(major));
+  const matrix = text.match(/node: \[([^\]]+)\]/);
+  assert.ok(matrix, 'ci.yml has a node matrix');
+  assert.deepEqual(
+    matrix[1].split(',').map((v) => v.trim().replace(/'/g, '')),
+    lts,
+    'CI tests every LTS major that engines.node allows'
+  );
+  const floor = pkg.peerDependencies['@strapi/strapi'].replace(/^\^/, '');
+  assert.ok(
+    text.includes(`npm install --no-save --ignore-scripts @strapi/strapi@${floor}`),
+    `CI tests the @strapi/strapi peer floor ${floor}`
+  );
   assert.match(text, /image: postgres:16[\w.-]*@sha256:[0-9a-f]{64}/);
   assert.ok(text.includes('npm run test:pg'));
   assert.ok(text.includes('MG_TEST_PG_URL'));
