@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.0...messagegate-v1.1.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **readme:** make images and links work on the Strapi marketplace ([#5](https://github.com/Schero94/Magic-MessageGate/issues/5)) ([d2e2125](https://github.com/Schero94/Magic-MessageGate/commit/d2e2125f2fd9ca9f20ada678d33aebe8ff385911))
+
 # [1.1.0](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.0.1...messagegate-v1.1.0) (2026-11-11)
 
 
