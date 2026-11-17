@@ -1,8 +1,10 @@
-# Checks every pull request and push to a non-main branch on the Node versions
-# Strapi 5.61 supports: lint, formatting, build (with the server bundle runtime
-# check), unit and multi-process tests on SQLite, package verification, package
-# contents and a production audit. A second job runs the exactly-once outbox
-# suite against PostgreSQL 16 (tests/pg).
+# Checks every pull request and push to a non-main branch on every Node major
+# that engines.node allows (22, 24, 26; Strapi 5.62 supports up to 26): lint,
+# formatting, build (with the server bundle runtime check), unit and
+# multi-process tests on SQLite, package verification, package contents and a
+# production audit. A second job runs the exactly-once outbox suite against
+# PostgreSQL 16 (tests/pg). A third job proves the lowest Strapi version that
+# peerDependencies accept (5.38.0), not only the version in the lockfile.
 name: CI
 
 on:
@@ -26,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22', '24']
+        node: ['22', '24', '26']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -58,6 +60,35 @@ jobs:
         run: npm pack --dry-run
       - name: Production audit
         run: npm audit --omit=dev --audit-level=high
+
+  peer-floor:
+    name: Lowest supported Strapi (5.38.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Strapi 5.38 supports Node 20 to 24.
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Install Strapi 5.38.0
+        run: npm install --no-save --ignore-scripts @strapi/strapi@5.38.0
+      - name: Build better-sqlite3
+        run: npm rebuild better-sqlite3
+      - name: Show installed Strapi version
+        run: node -p "require('@strapi/strapi/package.json').version"
+      - name: Build, tests and package verification
+        run: |
+          npm run build
+          npm test
+          npm run verify
 
   postgres:
     runs-on: ubuntu-latest
