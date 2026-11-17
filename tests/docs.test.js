@@ -20,16 +20,8 @@ test('docs: every local file the Pages site references exists', () => {
   for (const ref of refs) assert.ok(existsSync(path.join(site, ref)), `missing docs/site/${ref}`);
 });
 
-test('docs: README images and in-page anchors resolve', () => {
+test('docs: every README anchor the Pages site links to exists', () => {
   const readme = readFileSync(path.join(root, 'README.md'), 'utf8');
-  for (const [, file] of readme.matchAll(
-    /raw\.githubusercontent\.com\/Schero94\/Magic-MessageGate\/main\/([^)\s"]+)/g
-  )) {
-    assert.ok(existsSync(path.join(root, file)), `README image missing: ${file}`);
-  }
-  for (const [, file] of readme.matchAll(/\]\(\.\/([^)#]+)\)/g)) {
-    assert.ok(existsSync(path.join(root, file)), `README link missing: ${file}`);
-  }
   const slug = (h) =>
     h
       .toLowerCase()

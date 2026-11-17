@@ -1,11 +1,11 @@
-<p align="center"><img src="https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/icon.png" width="96" height="96" alt="Magic MessageGate icon" /></p>
+<p align="center"><img src="https://schero94.github.io/Magic-MessageGate/img/icon-128.png" width="96" height="96" alt="Magic MessageGate icon" /></p>
 
 # Magic MessageGate
 
 **WhatsApp, RCS, Telegram and SMS for Strapi 5: send templates and files, receive replies, buttons and photos, track delivery, fall back automatically.**
 
 [![npm](https://img.shields.io/npm/v/strapi-plugin-magic-messagegate?color=4945ff)](https://www.npmjs.com/package/strapi-plugin-magic-messagegate)
-[![License: MIT](https://img.shields.io/badge/license-MIT-4945ff)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-4945ff)](https://github.com/Schero94/Magic-MessageGate/blob/main/LICENSE)
 [![Strapi 5](https://img.shields.io/badge/Strapi-5.38%2B-4945ff)](https://strapi.io)
 [![Node](https://img.shields.io/badge/node-22.21%2B%20%7C%2024.9%2B-4945ff)](https://nodejs.org)
 
@@ -13,7 +13,7 @@ Send a template from your Strapi code, or from any other service, with one call.
 
 **send → receive → process → automate**: `messages.send` → `messagegate.message.received` → `inbound.get` / `inbound.getMedia` / `conversations.history` → `messages.reply` → `inbound.markProcessed`.
 
-![Message details with the delivery timeline](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/message-timeline.png)
+![Message details with the delivery timeline](https://schero94.github.io/Magic-MessageGate/img/message-timeline.png)
 
 ## Features
 
@@ -83,27 +83,37 @@ People often ask for things that WhatsApp, Telegram and SMS providers don't offe
      });
    ```
 
-Requirements: Strapi `^5.38.0`, Node.js `^22.21.0 || >=24.9.0`, PostgreSQL, MySQL 8 or SQLite.
+Requirements: Strapi `^5.38.0`, Node.js `^22.21.0 || >=24.9.0 <=26.x.x`, PostgreSQL, MySQL 8 or SQLite.
 
 Without `encryptionKey`, MessageGate falls back to `MESSAGEGATE_ENCRYPTION_KEY`, then `APP_KEYS`, then `ADMIN_JWT_SECRET`. If the key changes later, stored secrets and phone numbers can no longer be read.
 
 ## Screenshots
 
-|                                                                                                                  |                                                                                                                                  |
-| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| ![Messages](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/messages.png)                 | ![Template editor with live preview](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/template-editor.png) |
-| Messages with status, channel and filters                                                                        | Template editor with a live WhatsApp preview                                                                                     |
-| ![Connect WhatsApp](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/connect-whatsapp.png) | ![Contact details](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/contact-detail.png)                    |
-| Connect WhatsApp through Meta, including the Business App QR path                                                | A contact with consent, reachability and last activity                                                                           |
-| ![Analytics](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/analytics.png)               | ![Settings in dark mode](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/settings-dark.png)               |
-| Delivery and read rates per channel and template                                                                 | Routing, fallback, consent and retention (dark mode)                                                                             |
+![Messages with status, channel and filters](https://schero94.github.io/Magic-MessageGate/img/messages.png)
 
-| ![Inbox](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/inbox.png) | ![Conversation with a photo and a location](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/inbox-conversation.png) |
-| Inbox with buttons, files and locations from every channel | A conversation: inbound photo, location and the reply box |
-| ![RCS rich card](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/template-rcs.png) | ![Settings: inbox, files and outgoing webhook](https://raw.githubusercontent.com/Schero94/Magic-MessageGate/main/pics/settings-inbox.png) |
-| RCS rich card with buttons, created on Twilio | Inbox, inbound files and the signed outgoing webhook |
+_Messages with status, channel and filters._
 
-Every screen in light, dark and phone width is in [`pics/`](./pics).
+![Template editor with a live WhatsApp preview](https://schero94.github.io/Magic-MessageGate/img/template-editor.png)
+
+_Template editor with a live WhatsApp preview._
+
+![Inbox conversation with an inbound photo, a location and the reply box](https://schero94.github.io/Magic-MessageGate/img/inbox-conversation.png)
+
+_A conversation: inbound photo, location and the reply box._
+
+![Connect WhatsApp through Meta](https://schero94.github.io/Magic-MessageGate/img/connect-whatsapp.png)
+
+_Connect WhatsApp through Meta, including the Business App QR path._
+
+![Delivery and read rates per channel and template](https://schero94.github.io/Magic-MessageGate/img/analytics.png)
+
+_Delivery and read rates per channel and template._
+
+![RCS rich card with buttons](https://schero94.github.io/Magic-MessageGate/img/template-rcs.png)
+
+_An RCS rich card with buttons, created on Twilio._
+
+More screens (inbox, contacts, settings) are on the [docs site](https://schero94.github.io/Magic-MessageGate/#screens). Every screen in light, dark and phone width is in the [`pics/` folder on GitHub](https://github.com/Schero94/Magic-MessageGate/tree/main/pics).
 
 ## Connect your channels
 
@@ -243,7 +253,7 @@ curl -X POST https://cms.example.com/api/magic-messagegate/messages \
 
 The Content API only accepts API tokens. Users-permissions logins are refused, because these routes act on any phone number. Set `contentApi.allowUsersPermissions: true` only if you add your own checks.
 
-The full contract (every field, status, event and error code) is in [AGENTS.md](./AGENTS.md).
+The full contract (every field, status, event and error code) is in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md).
 
 ### Events
 
@@ -255,7 +265,7 @@ strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) 
 });
 ```
 
-Events: `messagegate.message.queued`, `.sent`, `.delivered`, `.read`, `.failed`, `.uncertain`, `.expired`, `.discarded`, `.fallback`, `.received`, plus `messagegate.media.ready`, `messagegate.media.failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable` and `messagegate.template.status-changed`. Every event is emitted by exactly one process. The same events can go to your own https endpoint, signed with HMAC-SHA256 (Settings → Outgoing webhook; verification code in [AGENTS.md](./AGENTS.md#outgoing-webhook)).
+Events: `messagegate.message.queued`, `.sent`, `.delivered`, `.read`, `.failed`, `.uncertain`, `.expired`, `.discarded`, `.fallback`, `.received`, plus `messagegate.media.ready`, `messagegate.media.failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable` and `messagegate.template.status-changed`. Every event is emitted by exactly one process. The same events can go to your own https endpoint, signed with HMAC-SHA256 (Settings → Outgoing webhook; verification code in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#outgoing-webhook)).
 
 ## Receiving messages
 
@@ -312,9 +322,9 @@ strapi
   });
 ```
 
-**External consumer.** Turn on Settings → Outgoing webhook, copy the signing secret once and check `X-MessageGate-Signature` as shown in [AGENTS.md](./AGENTS.md#outgoing-webhook). Deliveries carry ids and statuses only; fetch the text with the Content API.
+**External consumer.** Turn on Settings → Outgoing webhook, copy the signing secret once and check `X-MessageGate-Signature` as shown in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#outgoing-webhook). Deliveries carry ids and statuses only; fetch the text with the Content API.
 
-**Login link through Magic Link.** Create the token with [Magic Link](https://github.com/Schero94/Magic-Link) (`createToken`) and send its login URL by SMS or Telegram as a template variable. WhatsApp only allows login **codes** in `AUTHENTICATION` templates, not links, so send the code there (`transactional: true`).
+**Login link through Magic Link.** Create the token with [Magic Link](https://github.com/Schero94/strapi-plugin-magic-link-v5) (`createToken`) and send its login URL by SMS or Telegram as a template variable. WhatsApp only allows login **codes** in `AUTHENTICATION` templates, not links, so send the code there (`transactional: true`).
 
 ### Inbound files: limits, storage and privacy
 
@@ -366,7 +376,7 @@ const { sandboxConfig } = require('strapi-plugin-magic-messagegate/testing');
 module.exports = { 'magic-messagegate': { enabled: true, config: sandboxConfig() } };
 ```
 
-In sandbox mode no message leaves the server. Test numbers decide the outcome: `+4915550000002` is read, `+4915550000003` is not on WhatsApp (falls back), `+4915550000004` can't receive RCS, `+4915550000005` stays undelivered, `+4915550000007` ends uncertain, `+4915550000008` is an unassigned number; every other number is delivered. `sandbox.simulateInbound({ to, text, buttonPayload, media: { mime, size } })` (or `POST /api/magic-messagegate/sandbox/inbound`) feeds replies and files into your automations, and `drain(strapi)` runs the workers right away. The full table is in [AGENTS.md](./AGENTS.md#sandbox-tests-and-ci).
+In sandbox mode no message leaves the server. Test numbers decide the outcome: `+4915550000002` is read, `+4915550000003` is not on WhatsApp (falls back), `+4915550000004` can't receive RCS, `+4915550000005` stays undelivered, `+4915550000007` ends uncertain, `+4915550000008` is an unassigned number; every other number is delivered. `sandbox.simulateInbound({ to, text, buttonPayload, media: { mime, size } })` (or `POST /api/magic-messagegate/sandbox/inbound`) feeds replies and files into your automations, and `drain(strapi)` runs the workers right away. The full table is in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#sandbox-tests-and-ci).
 
 ## Permissions
 
@@ -420,7 +430,7 @@ MessageGate keeps its state in the database, so any number of Strapi processes c
 - Rate limits, the lookup budget and its cache, webhook de-duplication, inbound messages (unique per provider message id), media download jobs, outgoing webhook deliveries and maintenance jobs use shared database rows, so each event and each download happens once.
 - Webhooks can reach any process. No sticky sessions are needed.
 
-The test: 8 processes on one PostgreSQL database behind a round-robin balancer sent 500 messages with 0 duplicates. Status webhooks sent in random order to random processes all ended as `read`, and a STOP received by one process blocked the next send on another ([record](./docs/acceptance/2026-11-11-cluster.md)).
+The test: 8 processes on one PostgreSQL database behind a round-robin balancer sent 500 messages with 0 duplicates. Status webhooks sent in random order to random processes all ended as `read`, and a STOP received by one process blocked the next send on another ([record](https://github.com/Schero94/Magic-MessageGate/blob/main/docs/acceptance/2026-11-11-cluster.md)).
 
 Strapi creates and changes database tables at startup. For the first deploy, and for updates that change tables, start **one** replica first, then scale up.
 
@@ -456,11 +466,11 @@ No. Only a WhatsApp Business App number (coexistence) or a new number can be con
 2. Install MessageGate and connect your number through Meta (the Business App number works through coexistence).
 3. Recreate your templates and submit the WhatsApp ones to Meta.
 
-Details are in the [changelog](./CHANGELOG.md).
+Details are in the [changelog](https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md).
 
 ## For AI agents
 
-[AGENTS.md](./AGENTS.md) is the exact API contract for coding agents. The docs site also serves [`llms.txt`](https://schero94.github.io/Magic-MessageGate/llms.txt) and [`llms-full.txt`](https://schero94.github.io/Magic-MessageGate/llms-full.txt).
+[AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md) is the exact API contract for coding agents. The docs site also serves [`llms.txt`](https://schero94.github.io/Magic-MessageGate/llms.txt) and [`llms-full.txt`](https://schero94.github.io/Magic-MessageGate/llms-full.txt).
 
 ## Contributing
 
@@ -472,8 +482,8 @@ npm run test:pg   # 8 processes on PostgreSQL (set MG_TEST_PG_URL)
 npm run build && npm run verify
 ```
 
-Issues and pull requests are welcome at [github.com/Schero94/Magic-MessageGate](https://github.com/Schero94/Magic-MessageGate/issues). See [CONTRIBUTING.md](./CONTRIBUTING.md) for the checks, the 8-process acceptance run and releases; the design decisions are in [CONCEPT.md](./CONCEPT.md).
+Issues and pull requests are welcome at [github.com/Schero94/Magic-MessageGate](https://github.com/Schero94/Magic-MessageGate/issues). See [CONTRIBUTING.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONTRIBUTING.md) for the checks, the 8-process acceptance run and releases; the design decisions are in [CONCEPT.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONCEPT.md).
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/Schero94/Magic-MessageGate/blob/main/LICENSE)
