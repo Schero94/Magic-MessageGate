@@ -7,7 +7,7 @@
 [![npm](https://img.shields.io/npm/v/strapi-plugin-magic-messagegate?color=4945ff)](https://www.npmjs.com/package/strapi-plugin-magic-messagegate)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4945ff)](https://github.com/Schero94/Magic-MessageGate/blob/main/LICENSE)
 [![Strapi 5](https://img.shields.io/badge/Strapi-5.38%2B-4945ff)](https://strapi.io)
-[![Node](https://img.shields.io/badge/node-22.21%2B%20%7C%2024.9%2B-4945ff)](https://nodejs.org)
+[![Node](https://img.shields.io/badge/node-22.21%2B%20%7C%2024.9%E2%80%9326-4945ff)](https://nodejs.org)
 
 Send a template from your Strapi code, or from any other service, with one call. MessageGate picks the channel, fills in the variables, sends the message exactly once, follows it from _sent_ to _delivered_ to _read_, and falls back to RCS and SMS when WhatsApp can't reach the number. Replies come back as events with their text, button and files, so your code can answer them. It only uses the official provider APIs, so there is no WhatsApp Web session that can get your number banned.
 

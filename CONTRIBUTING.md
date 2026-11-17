@@ -28,7 +28,7 @@ npm pack --dry-run
 npm audit --omit=dev
 ```
 
-CI runs the same steps on Node 22 and 24, and `test:pg` against PostgreSQL 16.
+CI runs the same steps on Node 22, 24 and 26, the build and tests again with the lowest supported Strapi (5.38.0, the `peerDependencies` floor), and `test:pg` against PostgreSQL 16.
 
 Rules:
 
