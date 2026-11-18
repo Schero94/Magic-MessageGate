@@ -398,3 +398,19 @@ figcaption {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Project status badges in the hero: same row as the README. */
+.shields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1.25rem 0 0;
+}
+.shields a {
+  display: inline-flex;
+}
+.shields img {
+  display: block;
+  width: auto;
+  height: 20px;
+}
