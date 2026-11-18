@@ -131,7 +131,7 @@ export const ContactDetailModal = ({ id, onClose, onChanged }) => {
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header>
           <Modal.Title>{c?.phoneMasked || t('contact.title', 'Contact')}</Modal.Title>
         </Modal.Header>

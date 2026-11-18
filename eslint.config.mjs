@@ -35,5 +35,20 @@ export default [
       'no-unused-vars': ['error', { varsIgnorePattern: '^React$', argsIgnorePattern: '^_' }],
     },
   },
+  // Admin StrictMode harness and tests: Node test runner with a jsdom window, JSX, React Hooks.
+  {
+    files: ['tests/admin/**/*.mjs', 'tests/admin/**/*.jsx'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
   prettier,
 ];

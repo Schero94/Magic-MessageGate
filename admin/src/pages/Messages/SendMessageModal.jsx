@@ -142,7 +142,7 @@ export const SendMessageModal = ({ onClose, onSent, defaultPhone = '' }) => {
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && !busy && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <form onSubmit={submit} noValidate>
           <Modal.Header>
             <Modal.Title>{t('send.title', 'Send a message')}</Modal.Title>

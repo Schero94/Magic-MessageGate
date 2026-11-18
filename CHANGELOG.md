@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- The message details, send message, contact details, number check and account dialogs no longer log the Radix "Missing `Description`" warning: they state that their title is the only label (`aria-describedby={undefined}`).
+
+### Tests
+
+- `npm run test:admin`: StrictMode tests for every admin entry point (no duplicate requests, no leaked timers, listeners, connections or observers after unmount, no console errors or warnings), also run against React 19 in an informational CI job.
+
 ## [1.1.1](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.0...messagegate-v1.1.1) (2026-11-17)
 
 

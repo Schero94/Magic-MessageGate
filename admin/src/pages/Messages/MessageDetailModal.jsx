@@ -171,7 +171,7 @@ export const MessageDetailModal = ({ id, onClose, onChanged }) => {
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header>
           <Modal.Title>{t('message.title', 'Message details')}</Modal.Title>
         </Modal.Header>

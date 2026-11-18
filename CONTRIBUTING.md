@@ -22,13 +22,14 @@ npm run lint
 npm run format:check
 npm test          # unit tests, provider contract tests with local fakes, 8 processes on SQLite
 npm run test:pg   # 8 processes on PostgreSQL; set MG_TEST_PG_URL (default postgres://strapi@127.0.0.1:5440/mg_test)
+npm run test:admin # admin entry points in React StrictMode (jsdom, fake network)
 npm run build     # also runs the server bundle runtime check
 npm run verify
 npm pack --dry-run
 npm audit --omit=dev
 ```
 
-CI runs the same steps on Node 22, 24 and 26, the build and tests again with the lowest supported Strapi (5.38.0, the `peerDependencies` floor), and `test:pg` against PostgreSQL 16.
+CI runs the same steps on Node 22, 24 and 26, the build and tests again with the lowest supported Strapi (5.38.0, the `peerDependencies` floor), `test:pg` against PostgreSQL 16, and the admin StrictMode tests against React 19 (informational; the peer range stays React 18).
 
 Rules:
 
