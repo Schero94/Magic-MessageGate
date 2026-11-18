@@ -87,3 +87,10 @@
 
 - Remove `magic-whatsapp` from `config/plugins.*` and add `magic-messagegate`. Set `MESSAGEGATE_ENCRYPTION_KEY` (32+ random characters); without it the plugin derives keys from `APP_KEYS`.
 - Old `magic-whatsapp` permissions disappear; grant the new `plugin::magic-messagegate.*` actions to admin roles.
+
+## Release tags and npm versions
+
+- Release tags use `messagegate-v${version}` (`.releaserc.json` `tagFormat`). Every version on npm has one: `messagegate-v1.0.1`, `messagegate-v1.1.0`, `messagegate-v1.1.1`, ...
+- `messagegate-v1.0.0` exists as a tag but 1.0.0 was never published: the first release run failed at the npm step (OIDC token exchange `404 package not found`), after `@semantic-release/git` had pushed the tag. 1.0.1 (#2) is the first version on npm and carries the same code plus public access.
+- `v1.0.0` and `v1.0.1` (2026-10-13) are the tags of the private predecessor `strapi-plugin-magic-whatsapp` from this repository's history. They were never published to npm and are not MessageGate versions. They stay in place because they are published GitHub releases.
+- `0.0.0-stage` on npm (2026-11-11 08:35, description "Temporary package placeholder for staged publishing", 2 files, no code) is the placeholder npm created when the 1.0.1 run staged the first publish of the new package; 1.0.1 itself went live on approval at 08:37. It has no tag, is not a release and must not be installed; the package owner deprecates it with `npm deprecate strapi-plugin-magic-messagegate@0.0.0-stage "Placeholder created by npm staged publishing. Not a release; install strapi-plugin-magic-messagegate@latest."`.
