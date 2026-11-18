@@ -82,7 +82,7 @@ export const LookupModal = ({ onClose, onOpenContact, onChanged }) => {
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && !busy && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <form
           onSubmit={(event) => {
             event.preventDefault();

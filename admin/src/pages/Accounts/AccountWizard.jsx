@@ -388,7 +388,7 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && !busy && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <form onSubmit={save} noValidate>
           <Modal.Header>
             <Modal.Title ref={titleRef} tabIndex={-1}>

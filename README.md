@@ -481,8 +481,11 @@ npm ci
 npm run lint && npm run format:check
 npm test          # unit tests, provider contract tests with local fakes, 8 processes on SQLite
 npm run test:pg   # 8 processes on PostgreSQL (set MG_TEST_PG_URL)
+npm run test:admin # admin entry points in React StrictMode
 npm run build && npm run verify
 ```
+
+`npm run test:admin` renders every admin entry point (the seven sections of the plugin page, the template editor, the homepage widget, and the message, send, contact, number check and account dialogs) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 
 Issues and pull requests are welcome at [github.com/Schero94/Magic-MessageGate](https://github.com/Schero94/Magic-MessageGate/issues). See [CONTRIBUTING.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONTRIBUTING.md) for the checks, the 8-process acceptance run and releases; the design decisions are in [CONCEPT.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONCEPT.md).
 
