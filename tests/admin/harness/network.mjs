@@ -82,15 +82,32 @@ async function fakeFetch(input, init = {}) {
   }
   const route = [...routes].reverse().find((entry) => matches(entry, method, call.path, call.pathname));
   call.handled = Boolean(route);
-  const result = route
-    ? await route.reply({
-        ...call,
-        json: () => (typeof body === 'string' ? JSON.parse(body) : body),
-      })
-    : {
+  const answer = route
+    ? Promise.resolve(
+        route.reply({
+          ...call,
+          json: () => (typeof body === 'string' ? JSON.parse(body) : body),
+        })
+      )
+    : Promise.resolve({
         status: 404,
         body: { data: null, error: { status: 404, name: 'NotFoundError', message: 'Not Found' } },
-      };
+      });
+  // Like a browser, an abort rejects at once, even while the server is still answering.
+  let onAbort = () => {};
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => {
+      call.aborted = true;
+      reject(abortError());
+    };
+  });
+  signal?.addEventListener('abort', onAbort, { once: true });
+  let result;
+  try {
+    result = await Promise.race([answer, aborted]);
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
   const { status = 200, body: payload = null } =
     result && typeof result === 'object' && 'status' in result && 'body' in result ? result : { body: result };
   // Answer on a later task so abort-on-unmount can win the race, as in a browser.

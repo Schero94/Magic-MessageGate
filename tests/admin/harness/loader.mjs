@@ -138,8 +138,12 @@ const packageModuleEntry = async (specifier, parentPath) => {
   if (manifest.exports || typeof manifest.module !== 'string') return null;
   const entry = path.join(packageRoot, manifest.module);
   if (!(await isFile(entry))) return null;
-  // `.js` ESM in a package without `"type": "module"` cannot load natively; leave it to Node.
-  return entry.endsWith('.mjs') || manifest.type === 'module' ? entry : null;
+  if (entry.endsWith('.mjs') || manifest.type === 'module') return entry;
+  // A Babel-style `module` build (`.js` with ESM syntax, no `"type"`) loads as ESM too, as in Vite;
+  // Node detects module syntax in its other files. Loading the CommonJS `main` instead would
+  // require() a second copy of ESM-first dependencies (`@uiw/react-codemirror` ->
+  // `@codemirror/state` in the Design System's JSONInput). An explicit `"type": "commonjs"` stays.
+  return manifest.type === undefined && (await isEsmFile(entry)) ? entry : null;
 };
 
 /**

@@ -46,6 +46,11 @@ for (const key of Object.getOwnPropertyNames(window)) {
     // read-only jsdom internals
   }
 }
+// Node 25+ has its own Web Storage globals (`localStorage` is undefined without
+// --localstorage-file), so the loop above skips them: use jsdom's storage.
+for (const key of ['localStorage', 'sessionStorage']) {
+  Object.defineProperty(globalThis, key, { value: window[key], configurable: true, writable: true });
+}
 globalThis.window = window;
 globalThis.document = window.document;
 Object.defineProperty(globalThis, 'navigator', { value: window.navigator, configurable: true });
@@ -301,6 +306,13 @@ window.matchMedia = globalThis.matchMedia = (query) => ({
   dispatchEvent: () => false,
 });
 window.scrollTo = () => {};
+// jsdom has no layout: Range geometry (CodeMirror in the Design System's JSONInput measures text).
+for (const name of ['getClientRects', 'getBoundingClientRect']) {
+  if (!window.Range.prototype[name]) {
+    window.Range.prototype[name] =
+      name === 'getClientRects' ? () => [] : () => window.DOMRect.fromRect({ x: 0, y: 0, width: 0, height: 0 });
+  }
+}
 window.HTMLElement.prototype.scrollIntoView = function scrollIntoView() {};
 if (!window.HTMLElement.prototype.hasPointerCapture) {
   window.HTMLElement.prototype.hasPointerCapture = () => false;
