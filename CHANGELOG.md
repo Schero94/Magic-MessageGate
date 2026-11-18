@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.2](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.1...messagegate-v1.1.2) (2026-11-18)
+
+
+### Bug Fixes
+
+* **admin:** opt the dialogs out of the Radix description warning and add a StrictMode harness ([#9](https://github.com/Schero94/Magic-MessageGate/issues/9)) ([a6e300d](https://github.com/Schero94/Magic-MessageGate/commit/a6e300d2effcc1b0f4d0a3dd6893bb5720e2d9da))
+
 
 ### Fixed
 
