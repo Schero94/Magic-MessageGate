@@ -303,3 +303,34 @@ test('utils: provider credentials, send form, settings, messages, contacts, form
   const r = f.rangeFor('7d', Date.UTC(2026, 10, 11, 12));
   assert.ok(r.to > r.from && r.to - r.from > 6 * 86_400_000);
 });
+
+test('reasons: every provider error code MessageGate classifies has a plain-language explanation', async () => {
+  // reasons.js is an ES module without imports in a CommonJS package.
+  const source = fs.readFileSync(path.join(ADMIN, 'utils/reasons.js'), 'utf8');
+  const { reasonText } = await import(`data:text/javascript,${encodeURIComponent(source)}`);
+  const en = read('en');
+  const t = (id, fallback) => {
+    assert.equal(en[id], fallback, `${id} default differs from en.json`);
+    return fallback;
+  };
+  // The codes the adapters map to a retry decision or an account problem
+  // (server/src/adapters/*.js), plus the documented delivery-report codes.
+  const codes = [
+    ...[1, 2, 3, 4, 10, 100, 190, 200, 80007, 130429, 131000, 131005, 131008, 131009, 131026, 131030, 131031]
+      .concat([131042, 131047, 131048, 131049, 131050, 131053, 131056, 132000, 132001, 132015, 132016, 133010, 133016])
+      .map((c) => `META_${c}`),
+    ...[20003, 20429, 21211, 21212, 21408, 21606, 21610, 21611, 21612, 21614, 30003, 30004, 30005, 30006, 30007]
+      .concat([30008, 30034, 63035, 63036])
+      .map((c) => `TWILIO_${c}`),
+    ...[201, 202, 305, 401, 402, 403, 407001, 407002, 407003, 407004, 407005, 500, 501, 600, 901, 902, 903]
+      .map((c) => `SEVEN_${c}`)
+      .concat(['SEVEN_AUTH', 'SEVEN_900', 'SEVEN_NOTDELIVERED', 'SEVEN_EXPIRED', 'SEVEN_REJECTED', 'SEVEN_FAILED']),
+    'TG_400',
+    'TG_401',
+    'TG_403',
+    'TG_404',
+    'TG_429',
+  ];
+  const missing = codes.filter((code) => !reasonText(t, code));
+  assert.deepEqual(missing, [], 'codes without an explanation');
+});

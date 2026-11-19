@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Plain-language explanations, in all five admin languages, for 42 more provider error codes shown in message details and account health: Meta (allowed-list, registration, policy, payment, permission, rate-limit, template quality and parameter errors), Twilio (throttling, sender, geo permissions, unreachable and non-mobile numbers, blocked, A2P 10DLC), seven.io (every documented return code and delivery report) and Telegram (refused message, rejected token). Texts follow the providers' official error references.
+
 ## [1.1.2](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.1...messagegate-v1.1.2) (2026-11-18)
 
 
