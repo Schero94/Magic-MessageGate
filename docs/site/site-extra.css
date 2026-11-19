@@ -1,0 +1,44 @@
+/* Magic MessageGate page styles. site.css is the shared theme, byte-identical
+   in every plugin docs site; this file holds the MessageGate accent (taken
+   from the plugin icon) and the few rules this page alone needs. */
+
+:root {
+  --accent: #c2410c;
+  --accent-ink: #ad3a0b;
+  --on-accent: #ffffff;
+  --accent-soft: #fdebdf;
+  --hero-accent: #ffae7a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #ff9a5c;
+    --accent-ink: #ffb07f;
+    --on-accent: #0e1016;
+    --accent-soft: #3a2014;
+  }
+}
+
+/* Screenshots switch to their dark or phone version through <picture>. */
+.hero-shot picture,
+.shot picture {
+  display: block;
+  line-height: 0;
+}
+
+/* The long plugin name and four top links do not fit one row on small phones:
+   npm and the changelog stay in the hero badges and the footer. */
+.brand span {
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .top-links a[href$='CHANGELOG.md'],
+  .top-links a[href^='https://www.npmjs.com'] {
+    display: none;
+  }
+}
+
+/* Install steps carry wide code blocks; let the list use the full content width. */
+.section > .steps {
+  max-width: none;
+}

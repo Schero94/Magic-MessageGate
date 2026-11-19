@@ -6,39 +6,130 @@
     <title>Magic MessageGate: WhatsApp, RCS, Telegram and SMS for Strapi 5</title>
     <meta
       name="description"
-      content="Strapi 5 plugin for WhatsApp (Cloud API), RCS (Twilio), Telegram and SMS: templates and attachments, exactly-once sending, delivery and read tracking, inbound replies and files, fallback, consent and GDPR tools."
+      content="Magic MessageGate docs: a free Strapi 5 plugin that sends WhatsApp, RCS, Telegram and SMS exactly once, tracks delivery and read, and handles replies."
     />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#4945ff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#181826" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://schero94.github.io/Magic-MessageGate/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="Schero D." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#12151d" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Magic MessageGate documentation" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="Magic MessageGate for Strapi 5" />
     <meta
       property="og:description"
-      content="WhatsApp, RCS, Telegram and SMS from Strapi: send, receive, process and automate."
+      content="WhatsApp, RCS, Telegram and SMS from Strapi: send, receive, process and automate. Official provider APIs only, MIT licensed."
     />
     <meta property="og:url" content="https://schero94.github.io/Magic-MessageGate/" />
-    <meta property="og:image" content="https://schero94.github.io/Magic-MessageGate/img/message-timeline.png" />
-    <meta property="og:image:width" content="1440" />
-    <meta property="og:image:height" content="900" />
+    <meta property="og:image" content="https://schero94.github.io/Magic-MessageGate/img/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A message in the MessageGate admin with its delivery timeline" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Magic MessageGate for Strapi 5" />
+    <meta
+      name="twitter:description"
+      content="WhatsApp, RCS, Telegram and SMS from Strapi: send, receive, process and automate."
+    />
+    <meta name="twitter:image" content="https://schero94.github.io/Magic-MessageGate/img/og.jpg" />
     <link rel="icon" type="image/svg+xml" href="./img/icon.svg" />
     <link rel="apple-touch-icon" href="./img/icon-128.png" />
     <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt" />
+    <link rel="preload" as="image" href="./img/message-timeline.png" type="image/png" fetchpriority="high" media="(min-width: 601px) and (prefers-color-scheme: light)" />
     <link rel="stylesheet" href="./site.css" />
+    <link rel="stylesheet" href="./site-extra.css" />
+    <script src="./site.js" defer></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Magic MessageGate",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Node.js",
-        "description": "Strapi 5 plugin for WhatsApp (Cloud API), RCS, Telegram and SMS with templates, attachments, inbound messages, delivery tracking and fallback.",
-        "license": "https://opensource.org/licenses/MIT",
-        "url": "https://schero94.github.io/Magic-MessageGate/",
-        "codeRepository": "https://github.com/Schero94/Magic-MessageGate",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://schero94.github.io/Magic-MessageGate/#software",
+            "name": "Magic MessageGate",
+            "alternateName": "strapi-plugin-magic-messagegate",
+            "description": "Free Strapi 5 plugin for WhatsApp (Meta Cloud API), RCS (Twilio), Telegram and SMS: templates and attachments, exactly-once sending, delivery and read tracking, inbound replies and files, a fallback chain, consent and GDPR tools.",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "Strapi plugin",
+            "operatingSystem": "Node.js 22+ / Strapi 5",
+            "softwareRequirements": "Strapi ^5.38.0, Node.js ^22.21.0 || >=24.9.0 <=26.x.x",
+            "license": "https://opensource.org/licenses/MIT",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "url": "https://schero94.github.io/Magic-MessageGate/",
+            "downloadUrl": "https://www.npmjs.com/package/strapi-plugin-magic-messagegate",
+            "codeRepository": "https://github.com/Schero94/Magic-MessageGate",
+            "screenshot": "https://schero94.github.io/Magic-MessageGate/img/message-timeline.png",
+            "author": { "@type": "Person", "name": "Schero D.", "url": "https://schero94.github.io/" },
+            "sameAs": [
+              "https://github.com/Schero94/Magic-MessageGate",
+              "https://www.npmjs.com/package/strapi-plugin-magic-messagegate",
+              "https://schero94.github.io/plugins/magic-messagegate/"
+            ]
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Schero94", "item": "https://schero94.github.io/" },
+              { "@type": "ListItem", "position": 2, "name": "Plugins", "item": "https://schero94.github.io/plugins/" },
+              { "@type": "ListItem", "position": 3, "name": "Magic MessageGate", "item": "https://schero94.github.io/Magic-MessageGate/" }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Can MessageGate check whether a number has WhatsApp or RCS before sending?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Neither Meta's Cloud API nor Twilio has such a check. MessageGate learns it from the first send and falls back to the next channel. Unofficial WhatsApp checks are not used."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does MessageGate send e-mail?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. E-mail is an opt-in last step of the chain that hands the message to Magic Mail; it is off by default."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why is a message \"uncertain\"?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The request reached the provider, but no clear answer came back in time. The provider may or may not have the message, so sending again could deliver it twice. An admin can retry it (after confirming the risk) or mark it as sent."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I send free text on WhatsApp?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Only within 24 hours after the contact last wrote to you. Outside that window, Meta requires an approved template."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I connect my personal WhatsApp number?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Only a WhatsApp Business App number (coexistence) or a new number can be connected through the official API."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What does it cost?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "MessageGate is free (MIT). The providers charge you: Meta per delivered WhatsApp template message, Twilio per RCS message, seven.io or Twilio per SMS, and paid lookups if you turn them on. Telegram and the sandbox are free."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
   </head>
@@ -47,310 +138,370 @@
 
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="#top" aria-label="Magic MessageGate home">
-          <img class="brand-mark" src="./img/icon.svg" alt="" width="32" height="32" />
+        <a class="brand" href="#top" aria-label="Magic MessageGate documentation, back to top">
+          <img class="brand-logo" src="./img/icon.svg" alt="" width="32" height="32" />
           <span>Magic MessageGate</span>
         </a>
-        <nav class="top-links" aria-label="Primary navigation">
-          <a href="#features">Features</a>
+        <nav class="top-links" aria-label="Project links">
           <a href="#install">Install</a>
-          <a href="#api">API</a>
-          <a href="#security">Security</a>
           <a href="https://github.com/Schero94/Magic-MessageGate">GitHub</a>
+          <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm</a>
+          <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md">Changelog</a>
         </nav>
       </div>
     </header>
 
-    <main id="main-content" tabindex="-1">
-      <section class="hero" id="top" aria-labelledby="page-title">
-        <div class="hero-copy">
-          <p class="eyebrow">Strapi 5 plugin · MIT</p>
-          <h1 id="page-title">WhatsApp, RCS, Telegram and SMS for Strapi.</h1>
-          <p class="lead">
-            Send a template or a file with one call. MessageGate picks the channel, sends the message exactly once,
-            tracks it to <em>delivered</em> and <em>read</em>, and falls back to RCS and SMS when WhatsApp can't reach
-            the number. Replies, button taps and photos come back as events your code can answer. It uses the official
-            provider APIs only.
-          </p>
-          <div class="hero-actions">
-            <a class="button primary" href="#install">Get started</a>
-            <a class="button" href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm package</a>
-            <a class="button" href="https://github.com/Schero94/Magic-MessageGate">Source on GitHub</a>
+    <div class="hero-wrap" id="top">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <ol>
+                <li><a href="https://schero94.github.io/">Schero94</a></li>
+                <li><a href="https://schero94.github.io/plugins/">Plugins</a></li>
+                <li><span aria-current="page">Magic MessageGate docs</span></li>
+              </ol>
+            </nav>
+            <h1 id="page-title">WhatsApp, RCS, Telegram and SMS for Strapi</h1>
+            <p class="definition">
+              Magic MessageGate is a free, MIT-licensed Strapi 5 plugin that sends WhatsApp, RCS, Telegram and SMS
+              messages through the official provider APIs, exactly once, and turns replies into events your code can
+              answer.
+            </p>
+            <p>
+              Send a template or a file with one call. MessageGate picks the channel, tracks each message to
+              <em>delivered</em> and <em>read</em>, and falls back to RCS and SMS when WhatsApp can't reach the number.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#install">Get started</a>
+              <a class="button" href="https://github.com/Schero94/Magic-MessageGate/blob/main/README.md">Read the README</a>
+            </div>
+            <ul class="badges" aria-label="Compatibility and license">
+              <li>Strapi ^5.38</li>
+              <li>Node.js 22.21+ or 24.9+ (to 26.x)</li>
+              <li>PostgreSQL, MySQL 8, SQLite</li>
+              <li>5 admin languages</li>
+            </ul>
+            <p class="shields" aria-label="Project status badges">
+              <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate"><img src="https://img.shields.io/npm/v/strapi-plugin-magic-messagegate.svg" alt="npm version" height="20" /></a>
+              <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate"><img src="https://img.shields.io/npm/dm/strapi-plugin-magic-messagegate.svg" alt="npm downloads" height="20" /></a>
+              <a href="https://github.com/Schero94/Magic-MessageGate/actions/workflows/release.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/Schero94/Magic-MessageGate/release.yml?branch=main&amp;label=CI&amp;logo=github" alt="CI build status" height="20" /></a>
+              <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" height="20" /></a>
+              <a href="https://github.com/Schero94/Magic-MessageGate#quick-start"><img src="https://img.shields.io/badge/Strapi-5.38%2B-4945FF.svg" alt="Strapi 5.38+" height="20" /></a>
+              <a href="https://schero94.github.io/Magic-MessageGate/"><img src="https://img.shields.io/badge/docs-project%20site-6d4aff.svg" alt="Documentation site" height="20" /></a>
+            </p>
           </div>
-          <p class="shields" aria-label="Project status badges">
-            <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate"><img src="https://img.shields.io/npm/v/strapi-plugin-magic-messagegate.svg" alt="npm version" height="20" /></a>
-            <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate"><img src="https://img.shields.io/npm/dm/strapi-plugin-magic-messagegate.svg" alt="npm downloads" height="20" /></a>
-            <a href="https://github.com/Schero94/Magic-MessageGate/actions/workflows/release.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/Schero94/Magic-MessageGate/release.yml?branch=main&amp;label=CI&amp;logo=github" alt="CI build status" height="20" /></a>
-            <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" height="20" /></a>
-            <a href="https://github.com/Schero94/Magic-MessageGate#quick-start"><img src="https://img.shields.io/badge/Strapi-5.38%2B-4945FF.svg" alt="Strapi 5.38+" height="20" /></a>
-            <a href="https://schero94.github.io/Magic-MessageGate/"><img src="https://img.shields.io/badge/docs-project%20site-6d4aff.svg" alt="Documentation site" height="20" /></a>
+          <figure class="hero-shot">
+            <picture>
+              <source media="(max-width: 600px)" srcset="./img/message-timeline-mobile.png" />
+              <source media="(prefers-color-scheme: dark)" srcset="./img/message-timeline-dark.png" />
+              <img
+                src="./img/message-timeline.png"
+                width="1440"
+                height="900"
+                alt="A message in the MessageGate admin with its delivery timeline"
+                fetchpriority="high"
+              />
+            </picture>
+          </figure>
+        </div>
+      </section>
+    </div>
+
+    <main class="layout" id="main-content" tabindex="-1">
+      <nav class="side-nav" aria-label="Page sections">
+        <a href="#fit">Is it a fit?</a>
+        <a href="#features">Features</a>
+        <a href="#limits">API limits</a>
+        <a href="#screens">Screenshots</a>
+        <a href="#install">Install</a>
+        <a href="#api">API</a>
+        <a href="#configuration">Configuration</a>
+        <a href="#security">Security</a>
+        <a href="#faq">FAQ</a>
+        <a href="#releases">Releases</a>
+      </nav>
+
+      <div class="content">
+        <section class="section summary" id="fit" aria-labelledby="fit-title">
+          <h2 id="fit-title">Is MessageGate the right fit?</h2>
+          <div class="fit-grid">
+            <div class="fit fit-yes">
+              <h3>Use it when</h3>
+              <ul>
+                <li>Strapi should send WhatsApp, RCS, Telegram or SMS messages from code or from another service.</li>
+                <li>Each message must go out exactly once and you want to follow it to delivered and read.</li>
+                <li>Replies, button taps and files should arrive as events your code can answer.</li>
+                <li>You need consent per channel, STOP keywords and GDPR export and erasure.</li>
+              </ul>
+            </div>
+            <div class="fit fit-no">
+              <h3>Skip it when</h3>
+              <ul>
+                <li>You want to connect a personal WhatsApp number. Only a Business App number or a new number works.</li>
+                <li>You need to know before sending whether a number has WhatsApp or RCS. No official API offers that.</li>
+                <li>You only send e-mail. MessageGate never sends e-mail itself.</li>
+              </ul>
+            </div>
+            <div class="fit fit-req">
+              <h3>Requirements</h3>
+              <ul>
+                <li>Strapi <code>^5.38.0</code></li>
+                <li>Node.js <code>^22.21.0 || &gt;=24.9.0 &lt;=26.x.x</code></li>
+                <li>PostgreSQL, MySQL 8 or SQLite</li>
+                <li>An account per channel: Meta app, Twilio, seven.io or a Telegram bot</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" class="section" aria-labelledby="features-title">
+          <h2 id="features-title">What it does</h2>
+          <div class="card-grid">
+            <article class="card">
+              <h3>Four channels, one API</h3>
+              <p>
+                WhatsApp through Meta's Cloud API, RCS through Twilio, Telegram through the Bot API, SMS through seven.io
+                or Twilio. No vendor SDKs.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Templates with live preview</h3>
+              <p>
+                Variables, a preview per channel and the SMS part count. WhatsApp templates are submitted to Meta from
+                Strapi, and their approval status updates by itself.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Exactly once</h3>
+              <p>
+                A durable outbox in your database. Each message goes out once, also with several Strapi processes. The
+                same idempotency key never sends twice.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Delivery and read tracking</h3>
+              <p>Every message has a timeline, and failures come with a reason in plain language.</p>
+            </article>
+            <article class="card">
+              <h3>Fallback chain and routing rules</h3>
+              <p>
+                WhatsApp → RCS → SMS. Numbers that aren't on WhatsApp or can't receive RCS are remembered. Set the channel
+                order per template, tag or country. E-mail through Magic Mail is opt-in and off by default.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Consent and GDPR</h3>
+              <p>
+                Consent per channel, STOP keywords, export and erasure per contact. Phone numbers are stored encrypted.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Number checks</h3>
+              <p>
+                A free format check, plus optional paid checks with one cache and budget: Twilio line type and seven.io HLR.
+                Sends to unassigned numbers can stop before they cost anything.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Attachments</h3>
+              <p>
+                PDF, images and videos from the media library or a public https URL. SMS gets a short signed link that
+                expires.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Inbox and automation</h3>
+              <p>
+                Replies, buttons, photos, documents, voice notes and locations arrive once as an event. Files are checked
+                and stored in the media library. Answer from code or from the admin.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Built for tests</h3>
+              <p>
+                A dry run shows the route and message without sending. A sandbox with magic test numbers runs app tests
+                without network or cost.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Safe retries</h3>
+              <p>
+                Retries only when the provider provably didn't take the message. An unknown outcome becomes
+                <em>uncertain</em>, and an admin decides.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="limits" class="section" aria-labelledby="limits-title">
+          <h2 id="limits-title">What the official APIs allow</h2>
+          <p class="section-lead">People often ask for things the providers don't offer. Here is what is possible.</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Provider capabilities">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Question</th>
+                  <th scope="col">WhatsApp</th>
+                  <th scope="col">Telegram</th>
+                  <th scope="col">SMS</th>
+                  <th scope="col">MessageGate</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Does the number exist?</th>
+                  <td>No check before sending; error 131026 on the first send means "not on WhatsApp"</td>
+                  <td>Only for people who started your bot</td>
+                  <td>Paid carrier lookups</td>
+                  <td>Free format check, optional paid lookup, learns from the first send</td>
+                </tr>
+                <tr>
+                  <th scope="row">Can it receive RCS?</th>
+                  <td>–</td>
+                  <td>–</td>
+                  <td>Twilio has no RCS check</td>
+                  <td>Tries RCS, learns from error 63036, falls back to SMS</td>
+                </tr>
+                <tr>
+                  <th scope="row">Is the person online?</th>
+                  <td>Not available</td>
+                  <td>Not available</td>
+                  <td>Not available</td>
+                  <td>Shows the last activity instead</td>
+                </tr>
+                <tr>
+                  <th scope="row">Has the person read it?</th>
+                  <td>Yes, unless read receipts are off</td>
+                  <td>No read receipts for bots</td>
+                  <td>Delivery receipt only</td>
+                  <td>Timeline per message, read rate per template (a lower bound)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="screens" class="section" aria-labelledby="screens-title">
+          <h2 id="screens-title">The admin</h2>
+          <p class="section-lead">
+            Built only from the Strapi Design System. Every screen works in light and dark mode and at phone width.
           </p>
-          <ul class="badges" aria-label="Compatibility">
-            <li>Strapi ^5.38</li>
-            <li>Node.js 22 / 24</li>
-            <li>PostgreSQL · MySQL 8 · SQLite</li>
-            <li>5 admin languages</li>
-          </ul>
-        </div>
-        <figure class="hero-shot">
-          <picture>
-            <source media="(max-width: 600px)" srcset="./img/message-timeline-mobile.png" />
-            <source media="(prefers-color-scheme: dark)" srcset="./img/message-timeline-dark.png" />
-            <img
-              src="./img/message-timeline.png"
-              width="1440"
-              height="900"
-              alt="A message in the MessageGate admin with its delivery timeline"
-              fetchpriority="high"
-            />
-          </picture>
-        </figure>
-      </section>
+          <div class="gallery">
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/inbox-conversation-dark.png" />
+                <img
+                  src="./img/inbox-conversation.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Inbox conversation with an inbound photo, a location and the reply box"
+                />
+              </picture>
+              <figcaption>Inbox: replies, files and locations</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/template-rcs-dark.png" />
+                <img
+                  src="./img/template-rcs.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="RCS rich card template with image, title and buttons"
+                />
+              </picture>
+              <figcaption>RCS rich card with buttons</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/messages-dark.png" />
+                <img
+                  src="./img/messages.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Message list with status, channel and filters"
+                />
+              </picture>
+              <figcaption>Messages with status, channel and filters</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/template-editor-dark.png" />
+                <img
+                  src="./img/template-editor.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Template editor with a live preview"
+                />
+              </picture>
+              <figcaption>Template editor with a live preview</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/connect-whatsapp-dark.png" />
+                <img
+                  src="./img/connect-whatsapp.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Dialog to connect a WhatsApp number through Meta"
+                />
+              </picture>
+              <figcaption>Connect WhatsApp through Meta</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/contact-detail-dark.png" />
+                <img
+                  src="./img/contact-detail.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Contact details with consent per channel and last activity"
+                />
+              </picture>
+              <figcaption>Consent, reachability and last activity</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/analytics-dark.png" />
+                <img
+                  src="./img/analytics.png"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Analytics with delivery and read rates"
+                />
+              </picture>
+              <figcaption>Delivery and read rates</figcaption>
+            </figure>
+            <figure class="shot">
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="./img/number-check-dark.png" />
+                <img src="./img/number-check.png" width="1440" height="900" loading="lazy" alt="Number check dialog" />
+              </picture>
+              <figcaption>Number check</figcaption>
+            </figure>
+          </div>
+        </section>
 
-      <section id="features" class="section" aria-labelledby="features-title">
-        <h2 id="features-title">What it does</h2>
-        <div class="cards">
-          <article class="card">
-            <h3>Four channels, one API</h3>
-            <p>
-              WhatsApp through Meta's Cloud API, RCS through Twilio, Telegram through the Bot API, SMS through seven.io
-              or Twilio. No vendor SDKs.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Templates with live preview</h3>
-            <p>
-              Variables, a preview per channel and the SMS part count. WhatsApp templates are submitted to Meta from
-              Strapi, and their approval status updates by itself.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Exactly once</h3>
-            <p>
-              A durable outbox in your database. Each message goes out once, also with several Strapi processes. The
-              same idempotency key never sends twice.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Delivery and read tracking</h3>
-            <p>Every message has a timeline, and failures come with a reason in plain language.</p>
-          </article>
-          <article class="card">
-            <h3>Fallback chain and routing rules</h3>
-            <p>
-              WhatsApp → RCS → SMS. Numbers that aren't on WhatsApp or can't receive RCS are remembered. Set the channel
-              order per template, tag or country. E-mail through Magic Mail is opt-in and off by default.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Consent and GDPR</h3>
-            <p>
-              Consent per channel, STOP keywords, export and erasure per contact. Phone numbers are stored encrypted.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Number checks</h3>
-            <p>
-              A free format check, plus optional paid checks with one cache and budget: Twilio line type and seven.io HLR.
-              Sends to unassigned numbers can stop before they cost anything.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Attachments</h3>
-            <p>
-              PDF, images and videos from the media library or a public https URL. SMS gets a short signed link that
-              expires.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Inbox and automation</h3>
-            <p>
-              Replies, buttons, photos, documents, voice notes and locations arrive once as an event. Files are checked
-              and stored in the media library. Answer from code or from the admin.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Built for tests</h3>
-            <p>
-              A dry run shows the route and message without sending. A sandbox with magic test numbers runs app tests
-              without network or cost.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Safe retries</h3>
-            <p>
-              Retries only when the provider provably didn't take the message. An unknown outcome becomes
-              <em>uncertain</em>, and an admin decides.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section id="limits" class="section" aria-labelledby="limits-title">
-        <h2 id="limits-title">What the official APIs allow</h2>
-        <p class="section-lead">People often ask for things the providers don't offer. Here is what is possible.</p>
-        <div class="table-wrap" tabindex="0" role="region" aria-label="Provider capabilities">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Question</th>
-                <th scope="col">WhatsApp</th>
-                <th scope="col">Telegram</th>
-                <th scope="col">SMS</th>
-                <th scope="col">MessageGate</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Does the number exist?</th>
-                <td>No check before sending; error 131026 on the first send means "not on WhatsApp"</td>
-                <td>Only for people who started your bot</td>
-                <td>Paid carrier lookups</td>
-                <td>Free format check, optional paid lookup, learns from the first send</td>
-              </tr>
-              <tr>
-                <th scope="row">Can it receive RCS?</th>
-                <td>–</td>
-                <td>–</td>
-                <td>Twilio has no RCS check</td>
-                <td>Tries RCS, learns from error 63036, falls back to SMS</td>
-              </tr>
-              <tr>
-                <th scope="row">Is the person online?</th>
-                <td>Not available</td>
-                <td>Not available</td>
-                <td>Not available</td>
-                <td>Shows the last activity instead</td>
-              </tr>
-              <tr>
-                <th scope="row">Has the person read it?</th>
-                <td>Yes, unless read receipts are off</td>
-                <td>No read receipts for bots</td>
-                <td>Delivery receipt only</td>
-                <td>Timeline per message, read rate per template (a lower bound)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section id="screens" class="section" aria-labelledby="screens-title">
-        <h2 id="screens-title">The admin</h2>
-        <p class="section-lead">
-          Built only from the Strapi Design System. Every screen works in light and dark mode and at phone width.
-        </p>
-        <div class="gallery">
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/inbox-conversation-dark.png" />
-              <img
-                src="./img/inbox-conversation.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="Inbox conversation with an inbound photo, a location and the reply box"
-              />
-            </picture>
-            <figcaption>Inbox: replies, files and locations</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/template-rcs-dark.png" />
-              <img
-                src="./img/template-rcs.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="RCS rich card template with image, title and buttons"
-              />
-            </picture>
-            <figcaption>RCS rich card with buttons</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/messages-dark.png" />
-              <img
-                src="./img/messages.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="Message list with status, channel and filters"
-              />
-            </picture>
-            <figcaption>Messages with status, channel and filters</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/template-editor-dark.png" />
-              <img
-                src="./img/template-editor.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="Template editor with a live preview"
-              />
-            </picture>
-            <figcaption>Template editor with a live preview</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/connect-whatsapp-dark.png" />
-              <img
-                src="./img/connect-whatsapp.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="Dialog to connect a WhatsApp number through Meta"
-              />
-            </picture>
-            <figcaption>Connect WhatsApp through Meta</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/contact-detail-dark.png" />
-              <img
-                src="./img/contact-detail.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="Contact details with consent per channel and last activity"
-              />
-            </picture>
-            <figcaption>Consent, reachability and last activity</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/analytics-dark.png" />
-              <img
-                src="./img/analytics.png"
-                width="1440"
-                height="900"
-                loading="lazy"
-                alt="Analytics with delivery and read rates"
-              />
-            </picture>
-            <figcaption>Delivery and read rates</figcaption>
-          </figure>
-          <figure>
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="./img/number-check-dark.png" />
-              <img src="./img/number-check.png" width="1440" height="900" loading="lazy" alt="Number check dialog" />
-            </picture>
-            <figcaption>Number check</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section id="install" class="section" aria-labelledby="install-title">
-        <h2 id="install-title">Install in five minutes</h2>
-        <ol class="steps">
-          <li>
-            <p>Install the package:</p>
-            <pre><code>npm install strapi-plugin-magic-messagegate</code></pre>
-          </li>
-          <li>
-            <p>Enable it in <code>config/plugins.js</code>:</p>
-            <pre><code>module.exports = ({ env }) =&gt; ({
+        <section id="install" class="section" aria-labelledby="install-title">
+          <h2 id="install-title">Install in five minutes</h2>
+          <ol class="steps">
+            <li>
+              <p>Install the package:</p>
+              <div class="code-card">
+                <pre><code>npm install strapi-plugin-magic-messagegate</code></pre>
+              </div>
+            </li>
+            <li>
+              <p>Enable it in <code>config/plugins.js</code>:</p>
+              <div class="code-card">
+                <pre><code>module.exports = ({ env }) =&gt; ({
   'magic-messagegate': {
     enabled: true,
     config: {
@@ -359,36 +510,38 @@
     },
   },
 });</code></pre>
-          </li>
-          <li><p>Build and start Strapi, then open <strong>MessageGate</strong> in the admin menu.</p></li>
-          <li>
-            <p>
-              <strong>Accounts → Connect a channel.</strong> SMS (seven.io or Twilio) or Telegram (a bot token from
-              <a href="https://t.me/BotFather">@BotFather</a>) are the quickest first test.
-            </p>
-          </li>
-          <li>
-            <p>
-              <strong>Templates → Create template</strong>, then send it from <strong>Messages → Send message</strong>.
-            </p>
-          </li>
-        </ol>
-        <h3>WhatsApp</h3>
-        <p>
-          You need a Meta business portfolio, a Meta app with the WhatsApp product and a payment method. Meta charges per
-          delivered template message (<a href="https://developers.facebook.com/docs/whatsapp/pricing">pricing</a>).
-          Connect a new number, or your existing WhatsApp Business App number by QR code (coexistence), through
-          <strong>Connect with Meta</strong>, or paste the credentials by hand. For the Meta window, allow
-          <code>https://connect.facebook.net</code> in <code>script-src</code> and <code>https://www.facebook.com</code>
-          in <code>frame-src</code> of Strapi's security middleware. The
-          <a href="https://github.com/Schero94/Magic-MessageGate#connect-your-channels">README</a> has the full setup.
-        </p>
-      </section>
+              </div>
+            </li>
+            <li><p>Build and start Strapi, then open <strong>MessageGate</strong> in the admin menu.</p></li>
+            <li>
+              <p>
+                <strong>Accounts → Connect a channel.</strong> SMS (seven.io or Twilio) or Telegram (a bot token from
+                <a href="https://t.me/BotFather">@BotFather</a>) are the quickest first test.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Templates → Create template</strong>, then send it from <strong>Messages → Send message</strong>.
+              </p>
+            </li>
+          </ol>
+          <h3>WhatsApp</h3>
+          <p>
+            You need a Meta business portfolio, a Meta app with the WhatsApp product and a payment method. Meta charges per
+            delivered template message (<a href="https://developers.facebook.com/docs/whatsapp/pricing">pricing</a>).
+            Connect a new number, or your existing WhatsApp Business App number by QR code (coexistence), through
+            <strong>Connect with Meta</strong>, or paste the credentials by hand. For the Meta window, allow
+            <code>https://connect.facebook.net</code> in <code>script-src</code> and <code>https://www.facebook.com</code>
+            in <code>frame-src</code> of Strapi's security middleware. The
+            <a href="https://github.com/Schero94/Magic-MessageGate#connect-your-channels">README</a> has the full setup.
+          </p>
+        </section>
 
-      <section id="api" class="section" aria-labelledby="api-title">
-        <h2 id="api-title">API</h2>
-        <h3>From Strapi code</h3>
-        <pre><code>const { id, status, channel, duplicate } = await strapi
+        <section id="api" class="section" aria-labelledby="api-title">
+          <h2 id="api-title">API</h2>
+          <h3>From Strapi code</h3>
+          <div class="code-card">
+            <pre><code>const { id, status, channel, duplicate } = await strapi
   .plugin('magic-messagegate')
   .service('messages')
   .send({
@@ -398,114 +551,199 @@
     variables: { first_name: 'Anna', order_id: 'A-10423' },
     idempotencyKey: 'order-shipped-A-10423',
   });</code></pre>
-        <h3>From another service</h3>
-        <pre><code>curl -X POST https://cms.example.com/api/magic-messagegate/messages \
+          </div>
+          <h3>From another service</h3>
+          <div class="code-card">
+            <pre><code>curl -X POST https://cms.example.com/api/magic-messagegate/messages \
   -H "Authorization: Bearer $STRAPI_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"data":{"to":"+4915123456789","template":"order_shipped","variables":{"first_name":"Anna","order_id":"A-10423"}}}'</code></pre>
-        <p>
-          The Content API accepts Strapi API tokens only. It answers <code>202</code> for a new message and
-          <code>200</code> with <code>duplicate: true</code> for a repeated idempotency key, and the plan without
-          sending for <code>"dryRun": true</code>. Other routes: <code>GET /messages/:id</code>,
-          <code>POST /consent</code>, <code>POST /telegram-link</code>, <code>POST /lookup</code>,
-          <code>POST /capabilities</code>, <code>POST /templates/render</code>, and for inbound messages (a separate
-          permission) <code>GET /inbound</code>, <code>GET /inbound/:id/media</code>,
-          <code>POST /inbound/:id/reply</code>, <code>GET /conversations/:contactId</code>.
-        </p>
-        <h3>Receive and answer</h3>
-        <pre><code>const mg = strapi.plugin('magic-messagegate');
+          </div>
+          <p>
+            The Content API accepts Strapi API tokens only. It answers <code>202</code> for a new message and
+            <code>200</code> with <code>duplicate: true</code> for a repeated idempotency key, and the plan without
+            sending for <code>"dryRun": true</code>. Other routes: <code>GET /messages/:id</code>,
+            <code>POST /consent</code>, <code>POST /telegram-link</code>, <code>POST /lookup</code>,
+            <code>POST /capabilities</code>, <code>POST /templates/render</code>, and for inbound messages (a separate
+            permission) <code>GET /inbound</code>, <code>GET /inbound/:id/media</code>,
+            <code>POST /inbound/:id/reply</code>, <code>GET /conversations/:contactId</code>.
+          </p>
+          <h3>Receive and answer</h3>
+          <div class="code-card">
+            <pre><code>const mg = strapi.plugin('magic-messagegate');
 mg.service('inbound').onReceived(async ({ inboundId, buttonPayload }) =&gt; {
   const message = await mg.service('inbound').get(inboundId); // text, button, location, media
   const { items } = await mg.service('conversations').history({ inboundId });
   await mg.service('messages').reply(inboundId, { text: 'Thanks, we are on it.' });
   await mg.service('inbound').markProcessed(inboundId);
 });</code></pre>
-        <p>
-          Files: <code>inbound.getMedia(id, { as: 'buffer' | 'stream' | 'base64' })</code> or a short-lived signed URL
-          with <code>inbound.createMediaUrl(id)</code>. Optional: forward events to your own https endpoint, signed with
-          HMAC-SHA256.
-        </p>
-        <h3>Tests without network</h3>
-        <pre><code>// config/env/test/plugins.js
+          </div>
+          <p>
+            Files: <code>inbound.getMedia(id, { as: 'buffer' | 'stream' | 'base64' })</code> or a short-lived signed URL
+            with <code>inbound.createMediaUrl(id)</code>. Optional: forward events to your own https endpoint, signed with
+            HMAC-SHA256.
+          </p>
+          <h3>Tests without network</h3>
+          <div class="code-card">
+            <pre><code>// config/env/test/plugins.js
 const { sandboxConfig } = require('strapi-plugin-magic-messagegate/testing');
 module.exports = { 'magic-messagegate': { enabled: true, config: sandboxConfig() } };</code></pre>
-        <p>
-          Magic test numbers decide the outcome (read, not on WhatsApp, no RCS, undelivered, uncertain, unassigned).
-          <code>sandbox.simulateInbound()</code> feeds replies and files into your automations.
-        </p>
-        <h3>Events</h3>
-        <pre><code>strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) =&gt; {
+          </div>
+          <p>
+            Magic test numbers decide the outcome (read, not on WhatsApp, no RCS, undelivered, uncertain, unassigned).
+            <code>sandbox.simulateInbound()</code> feeds replies and files into your automations.
+          </p>
+          <h3>Events</h3>
+          <div class="code-card">
+            <pre><code>strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) =&gt; {
   strapi.log.warn(`Message ${messageId} on ${channel} failed: ${code}`);
 });</code></pre>
-        <p>
-          The full contract, with every field, status, event and error code, is in
-          <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md">AGENTS.md</a>. For AI tools:
-          <a href="./llms.txt">llms.txt</a> and <a href="./llms-full.txt">llms-full.txt</a>.
-        </p>
-      </section>
+          </div>
+          <p>
+            The full contract, with every field, status, event and error code, is in
+            <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md">AGENTS.md</a>. For AI tools:
+            <a href="./llms.txt">llms.txt</a> and <a href="./llms-full.txt">llms-full.txt</a>.
+          </p>
+        </section>
 
-      <section id="configuration" class="section" aria-labelledby="configuration-title">
-        <h2 id="configuration-title">Configuration</h2>
-        <p>
-          <code>config/plugins.js</code> holds the infrastructure options: encryption key, public URL, worker interval
-          and concurrency, retry delays, rate limits, provider timeouts and the Meta app for Embedded Signup. Business
-          rules live on the <strong>Settings</strong> page: consent, opt-out keywords, channel chain, routing rules,
-          e-mail fallback (off by default), lookups and their budget, inbox and inbound files, the outgoing webhook and
-          retention. The
-          <a href="https://github.com/Schero94/Magic-MessageGate#configuration">README</a> lists both with defaults.
-        </p>
-        <h3>Several instances</h3>
-        <p>
-          All state lives in the database, so Railway replicas or a pm2 cluster share it without sticky sessions. In the
-          acceptance run, 8 processes on one PostgreSQL database sent 500 messages with 0 duplicates. When a deploy
-          changes tables, start one replica first.
-        </p>
-      </section>
+        <section id="configuration" class="section" aria-labelledby="configuration-title">
+          <h2 id="configuration-title">Configuration</h2>
+          <p>
+            <code>config/plugins.js</code> holds the infrastructure options: encryption key, public URL, worker interval
+            and concurrency, retry delays, rate limits, provider timeouts and the Meta app for Embedded Signup. Business
+            rules live on the <strong>Settings</strong> page: consent, opt-out keywords, channel chain, routing rules,
+            e-mail fallback (off by default), lookups and their budget, inbox and inbound files, the outgoing webhook and
+            retention. The
+            <a href="https://github.com/Schero94/Magic-MessageGate#configuration">README</a> lists both with defaults.
+          </p>
+          <h3>Several instances</h3>
+          <p>
+            All state lives in the database, so Railway replicas or a pm2 cluster share it without sticky sessions. In the
+            acceptance run, 8 processes on one PostgreSQL database sent 500 messages with 0 duplicates. When a deploy
+            changes tables, start one replica first.
+          </p>
+        </section>
 
-      <section id="security" class="section" aria-labelledby="security-title">
-        <h2 id="security-title">Security and privacy</h2>
-        <ul class="checks">
-          <li>
-            Admin routes need a MessageGate permission (16 actions). The Content API needs an API token; reading inbound
-            text and files is a separate permission.
-          </li>
-          <li>Provider secrets are encrypted and never returned. Phone numbers are encrypted and found by a keyed hash.</li>
-          <li>Webhooks check the provider signature (Meta, Telegram, seven.io, Twilio) and ignore repeats.</li>
-          <li>Template variables are plain text, and Telegram HTML is escaped. No URL from user input is fetched.</li>
-          <li>
-            Attachment and webhook URLs must be public https; inbound files come only from the provider's own hosts, with
-            a size cap while streaming, a type allow-list, a content check and EXIF removal.
-          </li>
-          <li>Download links are signed and expire; every invalid link gets the same 404.</li>
-          <li>Rate limits and the lookup budget are counted in the database, so they hold across processes.</li>
-          <li>Two runtime dependencies: <code>zod</code> and <code>libphonenumber-js</code>.</li>
-        </ul>
-        <p>
-          Report vulnerabilities privately through
-          <a href="https://github.com/Schero94/Magic-MessageGate/security/advisories/new">GitHub security advisories</a>.
-        </p>
-      </section>
+        <section id="security" class="section" aria-labelledby="security-title">
+          <h2 id="security-title">Security and privacy</h2>
+          <ul class="checks">
+            <li>
+              Admin routes need a MessageGate permission (16 actions). The Content API needs an API token; reading inbound
+              text and files is a separate permission.
+            </li>
+            <li>Provider secrets are encrypted and never returned. Phone numbers are encrypted and found by a keyed hash.</li>
+            <li>Webhooks check the provider signature (Meta, Telegram, seven.io, Twilio) and ignore repeats.</li>
+            <li>Template variables are plain text, and Telegram HTML is escaped. No URL from user input is fetched.</li>
+            <li>
+              Attachment and webhook URLs must be public https; inbound files come only from the provider's own hosts, with
+              a size cap while streaming, a type allow-list, a content check and EXIF removal.
+            </li>
+            <li>Download links are signed and expire; every invalid link gets the same 404.</li>
+            <li>Rate limits and the lookup budget are counted in the database, so they hold across processes.</li>
+            <li>Two runtime dependencies: <code>zod</code> and <code>libphonenumber-js</code>.</li>
+          </ul>
+          <p>
+            Report vulnerabilities privately through
+            <a href="https://github.com/Schero94/Magic-MessageGate/security/advisories/new">GitHub security advisories</a>.
+          </p>
+        </section>
 
-      <section id="releases" class="section" aria-labelledby="releases-title">
-        <h2 id="releases-title">Releases</h2>
-        <p>
-          Versions follow semantic versioning and are published to
-          <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm</a>. Changes and migration notes
-          are in the <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md">changelog</a>.
-          MessageGate replaces the unpublished <code>magic-whatsapp</code> plugin, which drove WhatsApp Web through an
-          unofficial library; see the
-          <a href="https://github.com/Schero94/Magic-MessageGate#migrating-from-magic-whatsapp">migration notes</a>.
-        </p>
-      </section>
+        <section id="faq" class="section" aria-labelledby="faq-title">
+          <h2 id="faq-title">FAQ</h2>
+          <div class="faq">
+            <details>
+              <summary>Can MessageGate check whether a number has WhatsApp or RCS before sending?</summary>
+              <p>
+                No. Neither Meta's Cloud API nor Twilio has such a check. MessageGate learns it from the first send
+                and falls back to the next channel. Unofficial WhatsApp checks are not used.
+              </p>
+            </details>
+            <details>
+              <summary>Does MessageGate send e-mail?</summary>
+              <p>
+                No. E-mail is an opt-in last step of the chain that hands the message to Magic Mail; it is off by
+                default.
+              </p>
+            </details>
+            <details>
+              <summary>Why is a message "uncertain"?</summary>
+              <p>
+                The request reached the provider, but no clear answer came back in time. The provider may or may not
+                have the message, so sending again could deliver it twice. An admin can retry it (after confirming the
+                risk) or mark it as sent.
+              </p>
+            </details>
+            <details>
+              <summary>Can I send free text on WhatsApp?</summary>
+              <p>
+                Only within 24 hours after the contact last wrote to you. Outside that window, Meta requires an
+                approved template.
+              </p>
+            </details>
+            <details>
+              <summary>Can I connect my personal WhatsApp number?</summary>
+              <p>
+                No. Only a WhatsApp Business App number (coexistence) or a new number can be connected through the
+                official API.
+              </p>
+            </details>
+            <details>
+              <summary>What does it cost?</summary>
+              <p>
+                MessageGate is free (MIT). The providers charge you: Meta per delivered WhatsApp template message,
+                Twilio per RCS message, seven.io or Twilio per SMS, and paid lookups if you turn them on. Telegram and
+                the sandbox are free.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section id="releases" class="section" aria-labelledby="releases-title">
+          <h2 id="releases-title">Releases</h2>
+          <p>
+            Versions follow semantic versioning and are published to
+            <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm</a>. Changes and migration notes
+            are in the <a href="https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md">changelog</a>.
+            MessageGate replaces the unpublished <code>magic-whatsapp</code> plugin, which drove WhatsApp Web through an
+            unofficial library; see the
+            <a href="https://github.com/Schero94/Magic-MessageGate#migrating-from-magic-whatsapp">migration notes</a>.
+          </p>
+        </section>
+      </div>
     </main>
 
     <footer class="footer">
-      <p>
-        Magic MessageGate · MIT license ·
-        <a href="https://github.com/Schero94/Magic-MessageGate">GitHub</a> ·
-        <a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm</a> ·
-        <a href="./llms.txt">llms.txt</a>
-      </p>
+      <div class="footer-inner">
+        <div>
+          <p class="footer-name">Magic MessageGate</p>
+          <p>
+            WhatsApp, RCS, Telegram and SMS for Strapi 5. MIT licensed, maintained by
+            <a href="https://schero94.github.io/">Schero D.</a>
+          </p>
+          <p>
+            Overview and the other plugins:
+            <a href="https://schero94.github.io/plugins/magic-messagegate/">MessageGate on the plugin hub</a>.
+          </p>
+        </div>
+        <div>
+          <h2>Project</h2>
+          <ul>
+            <li><a href="https://github.com/Schero94/Magic-MessageGate">GitHub repository</a></li>
+            <li><a href="https://www.npmjs.com/package/strapi-plugin-magic-messagegate">npm package</a></li>
+            <li><a href="https://github.com/Schero94/Magic-MessageGate/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/Schero94/Magic-MessageGate/issues">Issues</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>Docs</h2>
+          <ul>
+            <li><a href="https://github.com/Schero94/Magic-MessageGate/blob/main/README.md">README</a></li>
+            <li><a href="https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md">AGENTS.md (API contract)</a></li>
+            <li><a href="./llms.txt">llms.txt</a></li>
+            <li><a href="./llms-full.txt">llms-full.txt</a></li>
+          </ul>
+        </div>
+      </div>
     </footer>
   </body>
 </html>
