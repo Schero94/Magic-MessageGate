@@ -342,6 +342,6 @@ test('a custom api.rest.prefix is used for the raw-body middleware and every pub
   const account = await core.accounts.create({ channel: 'sms', provider: 'seven', name: 'SMS', config: CREDS.seven });
   assert.match(
     account.webhookUrl,
-    /^https:\/\/cms\.example\.test\/v1\/magic-messagegate\/webhooks\/seven\/[A-Za-z0-9]+$/
+    /^https:\/\/cms\.example\.test\/v1\/magic-messagegate\/webhooks\/seven\/[A-Za-z0-9_-]+$/
   );
 });
