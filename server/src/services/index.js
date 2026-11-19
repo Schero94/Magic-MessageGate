@@ -43,6 +43,7 @@ function coreFor(strapi) {
           }
         },
         publicUrl: config.publicUrl || strapi.config.get('server.url') || '',
+        restPrefix: strapi.config.get('api.rest.prefix', '/api'),
         magicMail,
         files: strapi.db?.query ? createFiles(strapi) : null,
       })

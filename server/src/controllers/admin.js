@@ -111,8 +111,7 @@ module.exports = ({ strapi }) => {
       appId: signup.appId || null,
       configId: signup.configId || null,
       graphVersion: c.ctx.config.providers.meta.graphVersion || 'v23.0',
-      webhookUrl:
-        signup.verifyToken && c.ctx.publicUrl ? `${c.ctx.publicUrl}/api/magic-messagegate/webhooks/meta/app` : null,
+      webhookUrl: signup.verifyToken && c.ctx.publicUrl ? `${c.ctx.apiBase}/webhooks/meta/app` : null,
     };
   };
 

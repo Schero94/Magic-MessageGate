@@ -16,6 +16,7 @@ import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { channelLabels, providerLabels } from '../../utils/channels';
+import { webhookHint } from '../../utils/providers.mjs';
 import { reasonText } from '../../utils/reasons';
 import { AccountWizard } from './AccountWizard';
 
@@ -149,7 +150,7 @@ const AccountCard = ({ account, rbac, onEdit, onChanged }) => {
             hint={
               account.provider === 'telegram'
                 ? t('accounts.webhookUrl.telegram', 'Registered with Telegram automatically on "Test connection".')
-                : t('accounts.webhookUrl.hint', 'Enter it in the provider console for delivery and read receipts.')
+                : webhookHint(t, account.provider)
             }
           />
         ) : (

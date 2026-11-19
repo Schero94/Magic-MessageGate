@@ -204,18 +204,18 @@ function createSender(ctx, deps) {
           rendered = {
             payload: {
               kind: 'buttons',
-              text: text.slice(0, 1024),
+              text: engine.safeSlice(text, 1024),
               buttons: seed.buttons.map((b) => ({ id: b.payload, title: engine.clean(b.title) })),
             },
           };
-        } else rendered = { payload: { kind: 'text', text: text.slice(0, 4096) } };
+        } else rendered = { payload: { kind: 'text', text: engine.safeSlice(text, 4096) } };
       } else if (channel === 'telegram') {
         rendered = { payload: { text: engine.escapeHtml(text) } };
         if (seed.buttons?.length) {
           rendered.payload.buttons = seed.buttons.map((b) => ({ payload: b.payload, title: engine.clean(b.title) }));
         }
-      } else if (channel === 'rcs') rendered = { payload: { kind: 'rcs', text: text.slice(0, 1600) } };
-      else rendered = { payload: { text: text.slice(0, 1600) } };
+      } else if (channel === 'rcs') rendered = { payload: { kind: 'rcs', text: engine.safeSlice(text, 1600) } };
+      else rendered = { payload: { text: engine.safeSlice(text, 1600) } };
       rendered.preview = text;
     }
     if (!file || !plan) return rendered;
@@ -246,11 +246,13 @@ function createSender(ctx, deps) {
         };
       }
       const url = await link();
-      return { ...rendered, payload: { ...payload, text: `${payload.text}\n\n${engine.escapeHtml(url)}` } };
+      // The Bot API counts at most 4096 visible characters; keep room for the link.
+      const text = engine.truncateTelegramText(payload.text, 4096 - url.length - 2);
+      return { ...rendered, payload: { ...payload, text: `${text}\n\n${engine.escapeHtml(url)}` } };
     }
     const url = await link();
     const room = 1600 - url.length - 1;
-    return { ...rendered, payload: { text: `${String(payload.text).slice(0, room)}\n${url}` } };
+    return { ...rendered, payload: { text: `${engine.safeSlice(payload.text, room)}\n${url}` } };
   }
 
   /**

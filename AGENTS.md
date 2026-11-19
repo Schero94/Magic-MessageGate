@@ -360,23 +360,23 @@ Use the delivery id to ignore repeats.
 
 No phone numbers, names or message text in any payload. Every event is emitted by exactly one process.
 
-| Event                                 | Payload                                                                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `messagegate.message.queued`          | `{ messageId, channel, templateKey, status, code?, at }`                                       |
-| `messagegate.message.sent`            | same                                                                                           |
-| `messagegate.message.delivered`       | same                                                                                           |
-| `messagegate.message.read`            | same                                                                                           |
-| `messagegate.message.failed`          | same, `code` set                                                                               |
-| `messagegate.message.uncertain`       | same, `code` set                                                                               |
-| `messagegate.message.expired`         | same, `code: 'DEADLINE_PASSED'`                                                                |
-| `messagegate.message.discarded`       | same                                                                                           |
-| `messagegate.message.fallback`        | `{ messageId, channel, templateKey, status: 'fallback', code, at }` (`channel` = next channel) |
-| `messagegate.message.received`        | `{ inboundId, contactId, channel, replyTo, kind, buttonPayload?, media?: { status }, at }`     |
-| `messagegate.media.ready`             | `{ inboundId, fileId, mime, size, at }` (`fileId` is the media library id)                     |
-| `messagegate.media.failed`            | `{ inboundId, code, at }`                                                                      |
-| `messagegate.contact.opted-out`       | `{ channel, at }`                                                                              |
-| `messagegate.contact.unreachable`     | `{ channel: 'whatsapp', at }`                                                                  |
-| `messagegate.template.status-changed` | template id, key, language, new status                                                         |
+| Event                                 | Payload                                                                                              |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `messagegate.message.queued`          | `{ messageId, channel, templateKey, status, code?, at }`                                             |
+| `messagegate.message.sent`            | same                                                                                                 |
+| `messagegate.message.delivered`       | same                                                                                                 |
+| `messagegate.message.read`            | same                                                                                                 |
+| `messagegate.message.failed`          | same, `code` set                                                                                     |
+| `messagegate.message.uncertain`       | same, `code` set                                                                                     |
+| `messagegate.message.expired`         | same, `code: 'DEADLINE_PASSED'`                                                                      |
+| `messagegate.message.discarded`       | same                                                                                                 |
+| `messagegate.message.fallback`        | `{ messageId, channel, templateKey, status: 'fallback', code, at }` (`channel` = next channel)       |
+| `messagegate.message.received`        | `{ inboundId, contactId, channel, replyTo, kind, buttonPayload?, media?: { status }, at }`           |
+| `messagegate.media.ready`             | `{ inboundId, fileId, mime, size, at }` (`fileId` is the media library id)                           |
+| `messagegate.media.failed`            | `{ inboundId, code, at }`                                                                            |
+| `messagegate.contact.opted-out`       | `{ channel, at }`: opt-out keyword, `/stop`, Twilio `OptOutType=STOP`, Twilio 21610, seven.io 407004 |
+| `messagegate.contact.unreachable`     | `{ channel: 'whatsapp', at }`                                                                        |
+| `messagegate.template.status-changed` | template id, key, language, new status                                                               |
 
 ```js
 strapi.eventHub.on('messagegate.message.read', ({ messageId, templateKey }) => {

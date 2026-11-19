@@ -220,7 +220,7 @@ function createAttachments(ctx) {
      * @returns {Promise<string>} Absolute URL.
      */
     async createLink(file, ttlHours, { dryRun = false } = {}) {
-      if (dryRun) return `${ctx.publicUrl}/api/magic-messagegate/files/<signed-link>`;
+      if (dryRun) return `${ctx.apiBase}/files/<signed-link>`;
       const ref = {
         source: file.source,
         fileId: file.fileId,
@@ -248,7 +248,7 @@ function createAttachments(ctx) {
         created_at: ctx.now(),
       });
       return {
-        url: `${ctx.publicUrl}/api/magic-messagegate/files/${id}.${exp}.${sign(`${id}.${exp}`)}`,
+        url: `${ctx.apiBase}/files/${id}.${exp}.${sign(`${id}.${exp}`)}`,
         expiresAt: exp * 1000,
       };
     },

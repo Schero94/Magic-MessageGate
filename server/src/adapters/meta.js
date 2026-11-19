@@ -25,6 +25,13 @@
  *   /upload:<id> with `Authorization: OAuth <token>` and `file_offset: 0`,
  *   answer `{ h }`): https://developers.facebook.com/docs/graph-api/guides/upload
  *   and .../whatsapp/templates/components.md
+ *
+ * Re-checked 2026-11-20 against Meta's official OpenAPI
+ * (github.com/facebook/openapi, business-messaging-api_v23.0.yaml at
+ * e96a1c9d) and the Graph API
+ * versions table (https://developers.facebook.com/docs/graph-api/changelog/versions):
+ * v23.0 is available until 2027-10-08. The webhook status enum is sent,
+ * delivered, read, failed; `played` is kept as an alias of read.
  */
 const { request } = require('./http');
 const { fetchLimited, onHost } = require('../utils/download');

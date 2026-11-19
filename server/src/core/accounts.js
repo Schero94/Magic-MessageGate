@@ -199,7 +199,7 @@ function createAccounts(ctx) {
    */
   function webhookUrl(row) {
     if (!ctx.publicUrl) return null;
-    return `${ctx.publicUrl}/api/magic-messagegate/webhooks/${row.provider}/${row.webhook_path}`;
+    return `${ctx.apiBase}/webhooks/${row.provider}/${row.webhook_path}`;
   }
 
   /**

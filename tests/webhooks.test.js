@@ -409,3 +409,64 @@ test('webhooks are rate limited per account', async () => {
   }
   assert.deepEqual(statuses.slice(-2), [200, 429]);
 });
+
+/* ------------------------------------------------ provider audit 2026-11-20 */
+
+test('seven: sms_mo time is a Unix timestamp; a form-encoded hook is logged, not processed', async () => {
+  const { sevenTime } = require('../server/src/core/webhooks');
+  assert.equal(sevenTime('1605878104'), 1605878104000, 'official sms_mo example');
+  assert.equal(sevenTime('2021-08-24 08:08:00'), Date.parse('2021-08-24T08:08:00'));
+  assert.equal(sevenTime('soon'), null);
+
+  const { strapi, core, accounts, call } = await setup();
+  const url = `https://cms.example.test/api/magic-messagegate/webhooks/seven/${accounts.seven.path}`;
+  const raw = JSON.stringify({
+    webhook_event: 'sms_mo',
+    data: { id: '681590', sender: '4915123456789', system: '4930000000', text: 'Hallo', time: '1605878104' },
+  });
+  assert.equal((await call('seven', { raw, headers: sevenHeaders(raw, url) })).status, 200);
+  const [message] = (await core.inbound.list({})).results;
+  assert.equal(new Date(message.receivedAt).getTime(), 1605878104000);
+
+  const form = 'webhook_event=dlr&data%5Bmsg_id%5D=1&data%5Bstatus%5D=DELIVERED';
+  const headers = { ...sevenHeaders(form, url), 'content-type': 'application/x-www-form-urlencoded' };
+  assert.equal((await call('seven', { raw: form, headers })).status, 200);
+  assert.ok(
+    strapi.logs.some(([level, m]) => level === 'warn' && /request method of the seven\.io webhook to JSON/.test(m)),
+    'the owner is told how to fix the hook'
+  );
+});
+
+test('twilio: OptOutType=STOP from Advanced Opt-Out revokes SMS consent', async () => {
+  const { core, accounts, call, contact } = await setup();
+  const url = `https://cms.example.test/api/magic-messagegate/webhooks/twilio/${accounts.twilio.path}`;
+  const hex = (n) => n.toString(16).padStart(32, '0');
+  const params = {
+    AccountSid: CREDS.twilio.accountSid,
+    MessageSid: `SM${hex(77)}`,
+    From: PHONE,
+    To: '+15005550006',
+    Body: 'Cancel',
+    OptOutType: 'STOP',
+  };
+  const { raw, headers } = twilioRequest(url, params);
+  assert.equal((await call('twilio', { raw, headers })).status, 200);
+  assert.equal(await core.contacts.consentStatus(contact.id, 'sms'), 'revoked');
+});
+
+test('outbox: a provider opt-out (seven.io 407004) revokes consent so the next send stops', async () => {
+  const { core, contact } = await setup();
+  fake.queue('seven.send', { status: 200, json: { success: '407004' } });
+  const res = await core.sender.send({
+    to: PHONE,
+    channel: 'sms',
+    template: 'hello',
+    language: 'de',
+    variables: { name: 'Ana' },
+  });
+  await core.outbox.tick();
+  const row = await core.outbox.getRow(res.id);
+  assert.equal(row.status, 'failed');
+  assert.equal(row.error_code, 'SEVEN_407004');
+  assert.equal(await core.contacts.consentStatus(contact.id, 'sms'), 'revoked');
+});

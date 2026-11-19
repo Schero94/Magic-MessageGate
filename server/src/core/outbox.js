@@ -293,7 +293,7 @@ function createOutbox(ctx, deps) {
       const settings = ctx.config.providers[account.provider] || {};
       const statusCallbackUrl =
         account.provider === 'twilio' && ctx.publicUrl
-          ? `${ctx.publicUrl}/api/magic-messagegate/webhooks/twilio/${account.webhook_path}`
+          ? `${ctx.apiBase}/webhooks/twilio/${account.webhook_path}`
           : undefined;
       try {
         result = await adapter.send({
@@ -376,6 +376,11 @@ function createOutbox(ctx, deps) {
 
     if (result.outcome === 'rejected') {
       if (result.blocked && row.contact_id) await deps.contacts.suppress(row.contact_id, 'telegram', 'blocked_bot');
+      // The provider reports that the recipient unsubscribed there (Twilio
+      // 21610, seven.io 407004): record it, so the next send stops at consent.
+      if (result.optedOut && row.contact_id) {
+        await deps.contacts.setConsent(row.contact_id, row.channel, 'revoked', 'provider-opt-out');
+      }
       await fail(row, result.code || 'REJECTED', { account_id: usedAccount.id });
       return 'failed';
     }
