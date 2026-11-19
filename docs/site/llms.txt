@@ -2,6 +2,8 @@
 
 > Strapi 5 plugin (npm: strapi-plugin-magic-messagegate, plugin id: magic-messagegate) that sends and receives messages over WhatsApp (Meta Cloud API), RCS (Twilio), Telegram (Bot API) and SMS (seven.io, Twilio): send -> receive -> process -> automate. It has a durable exactly-once outbox, attachments, delivery and read tracking, inbound messages with buttons and files, a fallback chain (WhatsApp -> RCS -> SMS; e-mail through Magic Mail only when enabled), per-channel consent with STOP keywords, number checks, a dry run, a sandbox mode for tests, and an admin built from the Strapi Design System.
 
+Current version: __PACKAGE_VERSION__ (npm).
+
 Requirements: Strapi `^5.38.0`, Node.js `^22.21.0 || >=24.9.0 <=26.x.x`, PostgreSQL, MySQL 8 or SQLite. Install with `npm install strapi-plugin-magic-messagegate`; the current version is on npm. MIT licensed; the providers charge for their messages.
 
 Key facts for code generation:
