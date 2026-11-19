@@ -152,7 +152,12 @@ function buildBody(to, payload) {
     recipient_type: 'individual',
     to,
     type: 'template',
-    template: { name: payload.name, language: { code: payload.language }, components: payload.components || [] },
+    // `policy` is required by the official OpenAPI (LanguageObject); "deterministic" is its only value.
+    template: {
+      name: payload.name,
+      language: { policy: 'deterministic', code: payload.language },
+      components: payload.components || [],
+    },
   };
 }
 
