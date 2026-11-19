@@ -1,0 +1,406 @@
+{
+  "source": {
+    "commit": "0c976749e132089f51fe50fc865004c1294d198f",
+    "repository": "https://github.com/seven-io/api-schemes",
+    "sha256": "acbb8831cefcd8206c48acdf2708bb63681c07b1a889b5b78e720dc2a921d7d4",
+    "url": "https://raw.githubusercontent.com/seven-io/api-schemes/0c976749e132089f51fe50fc865004c1294d198f/json/openapi.json"
+  },
+  "spec": {
+    "components": {
+      "parameters": {
+        "lookupNumber": {
+          "description": "The phone number to look up",
+          "in": "query",
+          "name": "number",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "x-ms-summary": "Number"
+        }
+      },
+      "schemas": {
+        "Carrier": {
+          "properties": {
+            "country": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "network_code": {
+              "type": "string"
+            },
+            "network_type": {
+              "enum": [
+                "fixed_line",
+                "fixed_line_or_mobile",
+                "mobile",
+                "pager",
+                "personal_number",
+                "premium_rate",
+                "shared_cost",
+                "toll_free",
+                "uan",
+                "unknown",
+                "voicemail",
+                "voip"
+              ],
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "Roaming": {
+          "properties": {
+            "roaming_country_code": {
+              "type": "string"
+            },
+            "roaming_network_code": {
+              "type": "string"
+            },
+            "roaming_network_name": {
+              "type": "string"
+            },
+            "status": {
+              "enum": ["unknown", "roaming", "not_roaming"],
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "SmsResponse": {
+          "properties": {
+            "balance": {
+              "type": "number"
+            },
+            "debug": {
+              "pattern": "\\b(false|true)",
+              "type": "string"
+            },
+            "messages": {
+              "items": {
+                "properties": {
+                  "encoding": {
+                    "pattern": "\\b(gsm|ucs2)",
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "error_text": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "parts": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "price": {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "recipient": {
+                    "type": "string"
+                  },
+                  "sender": {
+                    "type": "string"
+                  },
+                  "success": {
+                    "type": "boolean"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "sms_type": {
+              "enum": ["direct"],
+              "type": "string"
+            },
+            "success": {
+              "type": "string"
+            },
+            "total_price": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "type": "object"
+        }
+      }
+    },
+    "info": {
+      "title": "seven",
+      "version": "1.0.0"
+    },
+    "openapi": "3.0.0",
+    "paths": {
+      "/balance": {
+        "get": {
+          "description": "Retrieves the account balance for given API key",
+          "operationId": "Balance",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "amount": {
+                        "format": "float",
+                        "type": "number"
+                      },
+                      "currency": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "OK"
+            }
+          },
+          "summary": "Get Balance",
+          "tags": ["Account"]
+        }
+      },
+      "/hooks": {
+        "post": {
+          "description": "Creates a hook",
+          "operationId": "HooksCreate",
+          "requestBody": {
+            "content": {
+              "application/x-www-form-urlencoded": {
+                "schema": {
+                  "properties": {
+                    "event_filter": {
+                      "description": "Sends the webhook only if the filter applies. For example, for different webhooks with different inbound numbers.",
+                      "type": "string",
+                      "x-ms-summary": "Event Filter"
+                    },
+                    "event_type": {
+                      "description": "Type of event for which you would like to receive a webhook.",
+                      "enum": ["all", "rcs", "sms_mo", "dlr", "voice_call", "voice_status", "voice_dtmf", "tracking"],
+                      "type": "string",
+                      "x-ms-summary": "Event Type"
+                    },
+                    "headers": {
+                      "description": "Custom headers to be sent to the webhook URL. Could contain multiple headers separated by a line break.",
+                      "type": "string",
+                      "x-ms-summary": "Headers"
+                    },
+                    "request_method": {
+                      "description": "Request method in which you would like to receive the webhook.",
+                      "enum": ["GET", "JSON", "POST"],
+                      "type": "string",
+                      "x-ms-summary": "Request Method"
+                    },
+                    "target_url": {
+                      "description": "Destination address of your webhook.",
+                      "type": "string",
+                      "x-ms-summary": "Target URL"
+                    }
+                  },
+                  "required": ["target_url", "event_type"],
+                  "type": "object"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "error_message": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "integer"
+                      },
+                      "success": {
+                        "type": "boolean"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "OK"
+            }
+          },
+          "summary": "Create Hook",
+          "tags": ["Hooks"]
+        }
+      },
+      "/lookup/hlr": {
+        "get": {
+          "description": "Retrieves home location register info",
+          "operationId": "LookupHLR",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/lookupNumber"
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "country_code": {
+                        "description": "The area code of the number belonging country. This value is numeric.",
+                        "type": "string"
+                      },
+                      "country_name": {
+                        "description": "The full english name if the number belonging country.",
+                        "type": "string"
+                      },
+                      "country_prefix": {
+                        "type": "string"
+                      },
+                      "current_carrier": {
+                        "$ref": "#/components/schemas/Carrier"
+                      },
+                      "international_format_number": {
+                        "type": "string"
+                      },
+                      "international_formatted": {
+                        "description": "The number formatted accordingly to the E.164 standard in a human readable format.",
+                        "type": "string"
+                      },
+                      "lookup_outcome": {
+                        "type": "string"
+                      },
+                      "lookup_outcome_message": {
+                        "type": "string"
+                      },
+                      "national_format_number": {
+                        "type": "string"
+                      },
+                      "original_carrier": {
+                        "$ref": "#/components/schemas/Carrier"
+                      },
+                      "reachable": {
+                        "type": "string"
+                      },
+                      "roaming": {
+                        "$ref": "#/components/schemas/Roaming"
+                      },
+                      "valid_number": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "OK"
+            }
+          },
+          "summary": "Lookup HLR",
+          "tags": ["Lookup"]
+        }
+      },
+      "/sms": {
+        "post": {
+          "description": "Sends one or multiple SMS to one or multiple recipients",
+          "operationId": "SmsDispatch",
+          "requestBody": {
+            "content": {
+              "application/x-www-form-urlencoded": {
+                "schema": {
+                  "properties": {
+                    "delay": {
+                      "description": "Date/Time for delayed dispatch - expects a timestamp \"1141511104\" or date time \"2016-03-04 23:25:04\"",
+                      "type": "string",
+                      "x-ms-summary": "Delay"
+                    },
+                    "flash": {
+                      "default": false,
+                      "description": "Send as flash SMS which appears directly on the recipients screen",
+                      "type": "boolean",
+                      "x-ms-summary": "Flash"
+                    },
+                    "foreign_id": {
+                      "description": "Identifier to return in callbacks for status reports etc.",
+                      "pattern": "^[A-Z|a-z|0-9|.|\\-|_|@]+",
+                      "type": "string",
+                      "x-ms-summary": "Foreign ID"
+                    },
+                    "from": {
+                      "description": "A custom sender name. A maximum of 11 alphanumeric or 16 numeric characters",
+                      "type": "string",
+                      "x-ms-summary": "Sender Identifier"
+                    },
+                    "label": {
+                      "description": "A custom label for sorting analytics",
+                      "pattern": "^[A-Z|a-z|0-9|.|\\-|_|@]+",
+                      "type": "string",
+                      "x-ms-summary": "Label"
+                    },
+                    "performance_tracking": {
+                      "default": false,
+                      "description": "Enable performance tracking for found URLs",
+                      "type": "boolean",
+                      "x-ms-summary": "Performance Tracking"
+                    },
+                    "text": {
+                      "description": "The actual text message to send - may not exceed 1520 characters",
+                      "type": "string",
+                      "x-ms-summary": "Message Content"
+                    },
+                    "to": {
+                      "description": "The recipient number(s) or contact/group name(s) - separate multiple recipients by comma",
+                      "type": "string",
+                      "x-ms-summary": "Recipient(s)"
+                    },
+                    "udh": {
+                      "description": "A custom user data deader - if set and message contains hex code, the message gets sent as 8-bit binary",
+                      "type": "string",
+                      "x-ms-summary": "User Data Header"
+                    }
+                  },
+                  "required": ["text", "to"],
+                  "type": "object"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SmsResponse"
+                  }
+                }
+              },
+              "description": "Success"
+            }
+          },
+          "summary": "Send Sms",
+          "tags": ["SMS"]
+        }
+      }
+    },
+    "servers": [
+      {
+        "url": "https://gateway.seven.io/api"
+      }
+    ]
+  }
+}

@@ -13,10 +13,17 @@
 - Webhook URLs, Twilio status callbacks, signed file links and the webhook raw-body capture follow `api.rest.prefix`. With a custom prefix every webhook used to fail the signature check.
 - Outgoing texts are never cut inside an emoji.
 - `Retry-After` given as an HTTP date is honoured (capped at 24 hours).
+- WhatsApp template messages send `language.policy: "deterministic"`, which Meta's official OpenAPI requires.
 
 ### Documentation
 
 - `docs/audits/2026-11-20-provider-apis.md`: audit of all four provider APIs against their official specs and docs.
+- `docs/contract-tests.md` and `docs/live-tests.md`: what the contract and live suites prove, the pinned sources, the defects found in the official specs, and the credential keys per provider.
+
+### Tests
+
+- Contract tests (`tests/contract-*.test.js`, part of `npm test`, offline): every adapter request validated against the provider's pinned official spec (Meta `facebook/openapi`, Twilio `twilio-oai`, seven.io `api-schemes`, Telegram Bot API tables), the specs' examples fed back through adapters and webhook handlers, and Twilio's own signature test vector. `npm run contract:specs` rebuilds the pinned specs; `-- --check` reports upstream changes.
+- Opt-in live suites (`npm run test:live`, never in CI): Telegram, Twilio (test credentials and magic numbers), Meta (test number) and seven.io, with credentials only from `~/.config/magic-messagegate-live/.env` (mode 600); paid sends, webhook changes and interactive steps each need their own switch, and webhook end-to-end runs use a cloudflared tunnel and restore what they change.
 
 ## [1.1.2](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.1...messagegate-v1.1.2) (2026-11-18)
 
