@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.3](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.2...messagegate-v1.1.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* correct provider edge cases found in the API audit ([#13](https://github.com/Schero94/Magic-MessageGate/issues/13)) ([8cc8097](https://github.com/Schero94/Magic-MessageGate/commit/8cc809726bca902a72495712af059f1aca14e9e7))
+
 
 ### Fixed
 
