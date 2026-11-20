@@ -8,6 +8,10 @@
 * correct provider edge cases found in the API audit ([#13](https://github.com/Schero94/Magic-MessageGate/issues/13)) ([8cc8097](https://github.com/Schero94/Magic-MessageGate/commit/8cc809726bca902a72495712af059f1aca14e9e7))
 
 
+### Added
+
+- Plain-language explanations, in all five admin languages, for 42 more provider error codes shown in message details and account health: Meta (allowed-list, registration, policy, payment, permission, rate-limit, template quality and parameter errors), Twilio (throttling, sender, geo permissions, unreachable and non-mobile numbers, blocked, A2P 10DLC), seven.io (every documented return code and delivery report) and Telegram (refused message, rejected token). Texts follow the providers' official error references.
+
 ### Fixed
 
 - seven.io: the admin and README now say to set the webhook's request method to **JSON**. seven.io's default sends form fields, which MessageGate cannot read; such a signed webhook now logs a warning instead of being dropped without a trace.
