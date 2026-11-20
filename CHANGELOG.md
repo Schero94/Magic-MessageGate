@@ -1,5 +1,12 @@
 # Changelog
 
+# [1.2.0](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.3...messagegate-v1.2.0) (2026-11-20)
+
+
+### Features
+
+* **admin:** explain every provider error code MessageGate classifies ([#16](https://github.com/Schero94/Magic-MessageGate/issues/16)) ([ee3933c](https://github.com/Schero94/Magic-MessageGate/commit/ee3933c9b507ea4009b173f9ca1805cde6929771))
+
 ## [1.1.3](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.2...messagegate-v1.1.3) (2026-11-20)
 
 
