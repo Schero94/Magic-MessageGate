@@ -321,7 +321,16 @@ function createWebhooks(ctx, deps) {
    * @returns {Promise<void>}
    */
   async function sevenEvent(account, body) {
-    const event = body?.webhook_event;
+    if (!body || typeof body !== 'object') {
+      // seven.io sends webhooks form-encoded unless the hook's request method
+      // is JSON (docs.seven.io/en/rest-api/endpoints/webhooks). The signature
+      // was valid, so the account is right but the hook is set up wrong.
+      ctx.log.warn(
+        '[magic-messagegate] seven.io webhook ignored: set the request method of the seven.io webhook to JSON'
+      );
+      return;
+    }
+    const event = body.webhook_event;
     const data = body?.data || {};
     if (event === 'dlr' && data.msg_id && typeof data.status === 'string') {
       const mapped = seven.DLR_STATUS[data.status.toUpperCase()];
@@ -346,7 +355,7 @@ function createWebhooks(ctx, deps) {
         account,
         kind: 'text',
         text: String(data.text || '').slice(0, 4096),
-        at: Date.parse(String(data.time || '').replace(' ', 'T')) || ctx.now(),
+        at: sevenTime(data.time) || ctx.now(),
       });
     }
   }
@@ -470,18 +479,41 @@ function createWebhooks(ctx, deps) {
       if (/^whatsapp:/i.test(from)) return { status: 200 };
       const contact = await contactByPhone(from);
       if (!contact) return { status: 200 };
-      await receive({
+      const channel = /^rcs:/i.test(from) || account.channel === 'rcs' ? 'rcs' : 'sms';
+      const row = await receive({
         provider: 'twilio',
         providerMessageId: sid,
-        channel: /^rcs:/i.test(from) || account.channel === 'rcs' ? 'rcs' : 'sms',
+        channel,
         contact,
         account,
         at: ctx.now(),
         ...twilioMessage(params),
       });
+      // Advanced Opt-Out sends OptOutType=STOP|START|HELP when the whole
+      // message matched one of the Messaging Service's keywords; Twilio then
+      // blocks further messages (error 21610). START is not treated as
+      // consent: consent comes from the app.
+      if (row && String(params.OptOutType || '').toUpperCase() === 'STOP') {
+        await deps.contacts.setConsent(contact.id, channel, 'revoked', 'provider-opt-out');
+      }
     }
     return { status: 200 };
   }
+}
+
+/**
+ * seven.io inbound SMS time: a Unix timestamp in seconds ("1605878104" in
+ * the official sms_mo example, docs.seven.io/en/rest-api/webhooks); older
+ * payloads used "YYYY-MM-DD hh:mm:ss".
+ *
+ * @param {unknown} value
+ * @returns {number|null} Milliseconds, or null when unknown.
+ */
+function sevenTime(value) {
+  const text = String(value ?? '').trim();
+  if (/^\d{9,11}$/.test(text)) return Number(text) * 1000;
+  const parsed = Date.parse(text.replace(' ', 'T'));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /**
@@ -522,4 +554,4 @@ function twilioMessage(p) {
   return out;
 }
 
-module.exports = { createWebhooks, META_STATUS, twilioMessage };
+module.exports = { createWebhooks, META_STATUS, twilioMessage, sevenTime };

@@ -182,6 +182,11 @@ Then, in **Accounts → Connect a channel → WhatsApp**, pick one of two ways:
 
 Copy the webhook URL shown for the account into the provider's status and inbound settings so delivery receipts and replies arrive.
 
+- **seven.io**: dashboard → Developer → Webhooks, add the URL for the events `dlr` and `sms_mo` and set the **request method to JSON**. seven.io's default sends form fields, which MessageGate ignores (the Strapi log then says so). SMS texts are cut at 1520 characters, seven.io's limit.
+- **Twilio**: set the URL as the status callback and the incoming-message webhook of the number or Messaging Service. With Advanced Opt-Out, a `STOP` reply revokes consent even when the keyword is not in MessageGate's own list, and Twilio error 21610 (recipient unsubscribed) does the same.
+
+Webhook URLs and file links follow `api.rest.prefix` from `config/api` (default `/api`).
+
 ### RCS (Twilio)
 
 1. Get an RCS sender approved in the Twilio Console and add it to a **Messaging Service**.

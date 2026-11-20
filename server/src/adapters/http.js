@@ -46,6 +46,28 @@ function causeCode(error) {
 }
 
 /**
+ * Retry-After is either delay-seconds or an HTTP-date (RFC 9110, section
+ * 10.2.3). Values are capped at one day so a broken header cannot park a
+ * message for weeks.
+ *
+ * @param {string|null} header
+ * @param {number} [now]
+ * @returns {number|null} Milliseconds to wait, or null.
+ */
+function parseRetryAfter(header, now = Date.now()) {
+  const value = String(header ?? '').trim();
+  if (!value) return null;
+  let ms = null;
+  if (/^\d{1,9}$/.test(value)) ms = Number(value) * 1000;
+  else {
+    const at = Date.parse(value);
+    if (Number.isFinite(at)) ms = at - now;
+  }
+  if (ms === null || !(ms > 0)) return null;
+  return Math.min(ms, 86_400_000);
+}
+
+/**
  * Performs one request and classifies the outcome.
  *
  * @param {object} options
@@ -88,8 +110,7 @@ async function request({ url, method = 'POST', headers = {}, body, timeoutMs = 1
     }
   }
   const status = response.status;
-  const retryAfterHeader = Number(response.headers.get('retry-after'));
-  const retryAfterMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader * 1000 : null;
+  const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
   if (status >= 200 && status < 300) return { outcome: 'accepted', status, json, code: null, retryAfterMs: null };
   if (status === 429 || status === 503)
     return { outcome: 'transient', status, json, code: `HTTP_${status}`, retryAfterMs };
@@ -99,4 +120,4 @@ async function request({ url, method = 'POST', headers = {}, body, timeoutMs = 1
   return { outcome: 'rejected', status, json, code: `HTTP_${status}`, retryAfterMs: null };
 }
 
-module.exports = { request, PRE_SEND_CODES };
+module.exports = { request, parseRetryAfter, PRE_SEND_CODES };

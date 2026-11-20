@@ -187,6 +187,11 @@ Then, in **Accounts → Connect a channel → WhatsApp**, pick one of two ways:
 
 Copy the webhook URL shown for the account into the provider's status and inbound settings so delivery receipts and replies arrive.
 
+- **seven.io**: dashboard → Developer → Webhooks, add the URL for the events `dlr` and `sms_mo` and set the **request method to JSON**. seven.io's default sends form fields, which MessageGate ignores (the Strapi log then says so). SMS texts are cut at 1520 characters, seven.io's limit.
+- **Twilio**: set the URL as the status callback and the incoming-message webhook of the number or Messaging Service. With Advanced Opt-Out, a `STOP` reply revokes consent even when the keyword is not in MessageGate's own list, and Twilio error 21610 (recipient unsubscribed) does the same.
+
+Webhook URLs and file links follow `api.rest.prefix` from `config/api` (default `/api`).
+
 ### RCS (Twilio)
 
 1. Get an RCS sender approved in the Twilio Console and add it to a **Messaging Service**.
@@ -862,23 +867,23 @@ Use the delivery id to ignore repeats.
 
 No phone numbers, names or message text in any payload. Every event is emitted by exactly one process.
 
-| Event                                 | Payload                                                                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `messagegate.message.queued`          | `{ messageId, channel, templateKey, status, code?, at }`                                       |
-| `messagegate.message.sent`            | same                                                                                           |
-| `messagegate.message.delivered`       | same                                                                                           |
-| `messagegate.message.read`            | same                                                                                           |
-| `messagegate.message.failed`          | same, `code` set                                                                               |
-| `messagegate.message.uncertain`       | same, `code` set                                                                               |
-| `messagegate.message.expired`         | same, `code: 'DEADLINE_PASSED'`                                                                |
-| `messagegate.message.discarded`       | same                                                                                           |
-| `messagegate.message.fallback`        | `{ messageId, channel, templateKey, status: 'fallback', code, at }` (`channel` = next channel) |
-| `messagegate.message.received`        | `{ inboundId, contactId, channel, replyTo, kind, buttonPayload?, media?: { status }, at }`     |
-| `messagegate.media.ready`             | `{ inboundId, fileId, mime, size, at }` (`fileId` is the media library id)                     |
-| `messagegate.media.failed`            | `{ inboundId, code, at }`                                                                      |
-| `messagegate.contact.opted-out`       | `{ channel, at }`                                                                              |
-| `messagegate.contact.unreachable`     | `{ channel: 'whatsapp', at }`                                                                  |
-| `messagegate.template.status-changed` | template id, key, language, new status                                                         |
+| Event                                 | Payload                                                                                              |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `messagegate.message.queued`          | `{ messageId, channel, templateKey, status, code?, at }`                                             |
+| `messagegate.message.sent`            | same                                                                                                 |
+| `messagegate.message.delivered`       | same                                                                                                 |
+| `messagegate.message.read`            | same                                                                                                 |
+| `messagegate.message.failed`          | same, `code` set                                                                                     |
+| `messagegate.message.uncertain`       | same, `code` set                                                                                     |
+| `messagegate.message.expired`         | same, `code: 'DEADLINE_PASSED'`                                                                      |
+| `messagegate.message.discarded`       | same                                                                                                 |
+| `messagegate.message.fallback`        | `{ messageId, channel, templateKey, status: 'fallback', code, at }` (`channel` = next channel)       |
+| `messagegate.message.received`        | `{ inboundId, contactId, channel, replyTo, kind, buttonPayload?, media?: { status }, at }`           |
+| `messagegate.media.ready`             | `{ inboundId, fileId, mime, size, at }` (`fileId` is the media library id)                           |
+| `messagegate.media.failed`            | `{ inboundId, code, at }`                                                                            |
+| `messagegate.contact.opted-out`       | `{ channel, at }`: opt-out keyword, `/stop`, Twilio `OptOutType=STOP`, Twilio 21610, seven.io 407004 |
+| `messagegate.contact.unreachable`     | `{ channel: 'whatsapp', at }`                                                                        |
+| `messagegate.template.status-changed` | template id, key, language, new status                                                               |
 
 ```js
 strapi.eventHub.on('messagegate.message.read', ({ messageId, templateKey }) => {

@@ -215,6 +215,10 @@ test('utils: provider credentials, send form, settings, messages, contacts, form
     apiKey: 'k',
     senderId: 'Shop',
   });
+  const echo = (id) => id;
+  assert.equal(pr.webhookHint(echo, 'seven'), 'accounts.webhookUrl.seven', 'seven.io needs the JSON request method');
+  assert.equal(pr.webhookHint(echo, 'twilio'), 'accounts.webhookUrl.twilio');
+  assert.equal(pr.webhookHint(echo, 'meta'), 'accounts.webhookUrl.hint');
 
   const { validateSend } = await load('utils/send.mjs');
   assert.deepEqual(validateSend({ to: '', isText: true, text: '' }), { to: 'required', text: 'required' });

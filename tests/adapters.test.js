@@ -364,3 +364,135 @@ test('twilio: Lookup v2 line type intelligence', async () => {
   assert.equal(req.url, `/lookup/v2/PhoneNumbers/${encodeURIComponent(TO)}?Fields=line_type_intelligence`);
   assert.equal(req.method, 'GET');
 });
+
+/* ------------------------------------------------ provider audit 2026-11-20 */
+
+test('http: Retry-After as seconds or HTTP-date, capped at one day', () => {
+  const { parseRetryAfter } = require('../server/src/adapters/http');
+  const now = Date.parse('2026-11-20T10:00:00Z');
+  assert.equal(parseRetryAfter('7', now), 7000);
+  assert.equal(parseRetryAfter('Fri, 20 Nov 2026 10:00:30 GMT', now), 30_000);
+  assert.equal(parseRetryAfter('Fri, 20 Nov 2026 09:00:00 GMT', now), null, 'a date in the past');
+  assert.equal(parseRetryAfter('999999', now), 86_400_000);
+  assert.equal(parseRetryAfter('soon', now), null);
+  assert.equal(parseRetryAfter(null, now), null);
+});
+
+test('telegram: long HTML text is never cut inside an entity', async () => {
+  const escaped = '&amp;'.repeat(4096); // 4096 visible characters, 20480 bytes of HTML
+  await telegram.send({
+    config: CREDS.telegram,
+    to: '12345',
+    payload: { text: escaped },
+    settings: fake.providers.telegram,
+    fetchImpl: loopbackFetch,
+  });
+  const [req] = fake.of('telegram.send');
+  assert.equal(req.json.text, escaped, 'within 4096 visible characters the text is sent unchanged');
+  await telegram.send({
+    config: CREDS.telegram,
+    to: '12345',
+    payload: { text: `${escaped}x&lt;` },
+    settings: fake.providers.telegram,
+    fetchImpl: loopbackFetch,
+  });
+  const long = fake.of('telegram.send')[1].json.text;
+  assert.equal(long, escaped, 'cut at 4096 visible characters, after a whole entity');
+});
+
+test('seven: text is cut to the documented 1520 characters without splitting an emoji', async () => {
+  const text = `${'a'.repeat(1519)}😀tail`;
+  await seven.send({
+    config: CREDS.seven,
+    to: TO,
+    payload: { text },
+    settings: fake.providers.seven,
+    fetchImpl: loopbackFetch,
+  });
+  const [req] = fake.of('seven.send');
+  assert.equal(req.form.text, 'a'.repeat(1519), 'the surrogate pair at 1520/1521 is dropped, not split');
+  assert.equal(seven.MAX_TEXT, 1520);
+});
+
+test('seven: 101 with one failed recipient, opt-out, credit and spending limit codes', async () => {
+  const cases = [
+    [
+      { success: '101', messages: [{ id: null, success: false, error: '407004' }] },
+      'rejected',
+      'SEVEN_407004',
+      false,
+      true,
+    ],
+    [{ success: '101', messages: [{ id: null, success: false, error: '202' }] }, 'rejected', 'SEVEN_202', false, false],
+    [{ success: '407004' }, 'rejected', 'SEVEN_407004', false, true],
+    [{ success: '501' }, 'rejected', 'SEVEN_501', true, false],
+    [{ success: '500' }, 'transient', 'SEVEN_500', true, undefined],
+    [{ success: '101' }, 'ambiguous', 'SEVEN_101', false, undefined],
+  ];
+  for (const [json, outcome, code, accountProblem, optedOut] of cases) {
+    fake.queue('seven.send', { status: 200, json });
+    const res = await seven.send({
+      config: CREDS.seven,
+      to: TO,
+      payload: { text: 'Hi' },
+      settings: fake.providers.seven,
+      fetchImpl: loopbackFetch,
+    });
+    assert.equal(res.outcome, outcome, JSON.stringify(json));
+    assert.equal(res.code, code);
+    assert.equal(res.accountProblem, accountProblem, `account problem for ${code}`);
+    assert.equal(res.optedOut, optedOut, `opted out for ${code}`);
+  }
+});
+
+test('seven: HLR roaming is read from the documented object', async () => {
+  fake.queue('seven.hlr', {
+    status: 200,
+    json: { valid_number: 'valid', reachable: 'reachable', roaming: { status: 'not_roaming' }, current_carrier: {} },
+  });
+  const res = await seven.hlr({
+    config: CREDS.seven,
+    e164: TO,
+    settings: fake.providers.seven,
+    fetchImpl: loopbackFetch,
+  });
+  assert.equal(res.roaming, 'not_roaming');
+});
+
+test('twilio: 21610 (recipient replied STOP) is a permanent opt-out', async () => {
+  fake.queue('twilio.send', {
+    status: 400,
+    json: { code: 21610, message: 'Attempt to send to unsubscribed recipient', status: 400 },
+  });
+  const res = await twilio.send({
+    config: CREDS.twilio,
+    to: TO,
+    payload: { text: 'Hi' },
+    settings: fake.providers.twilio,
+    fetchImpl: loopbackFetch,
+  });
+  assert.equal(res.outcome, 'rejected');
+  assert.equal(res.code, 'TWILIO_21610');
+  assert.equal(res.optedOut, true);
+  fake.queue('twilio.send', { status: 400, json: { code: 21611, message: 'queue full', status: 400 } });
+  const full = await twilio.send({
+    config: CREDS.twilio,
+    to: TO,
+    payload: { text: 'Hi' },
+    settings: fake.providers.twilio,
+    fetchImpl: loopbackFetch,
+  });
+  assert.equal(full.outcome, 'transient', '21611: the sender queue is full, nothing was sent');
+});
+
+test('meta: the pinned Graph API version stays supported for at least 90 more days', () => {
+  // https://developers.facebook.com/docs/graph-api/changelog/versions (read
+  // 2026-11-20): v23.0 released 2025-05-29, available until 2027-10-08. The
+  // official WhatsApp OpenAPI (github.com/facebook/openapi) describes v23.0.
+  // This test fails 90 days before the end so the default can be moved in time.
+  const EXPIRES = { 'v23.0': '2027-10-08' };
+  const source = require('node:fs').readFileSync(require.resolve('../server/src/adapters/meta'), 'utf8');
+  const version = /const DEFAULT_VERSION = '(v\d+\.\d)'/.exec(source)?.[1];
+  assert.ok(EXPIRES[version], `add the end of support of ${version} to this test`);
+  assert.ok(Date.parse(EXPIRES[version]) - Date.now() > 90 * 86_400_000, `${version} ends on ${EXPIRES[version]}`);
+});

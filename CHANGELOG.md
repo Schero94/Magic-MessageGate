@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- seven.io: the admin and README now say to set the webhook's request method to **JSON**. seven.io's default sends form fields, which MessageGate cannot read; such a signed webhook now logs a warning instead of being dropped without a trace.
+- seven.io: SMS texts are cut at 1520 characters (the documented limit) instead of 1600, so texts between 1521 and 1600 characters no longer fail with code 401.
+- seven.io: return code 101 for the single recipient is a rejection with the recipient's own error code instead of `uncertain`; 500 (no credit) and 501 (spending limit) mark the account unhealthy; 407004 (recipient unsubscribed) revokes SMS consent.
+- seven.io: inbound SMS keep their real receive time (`time` is a Unix timestamp); HLR checks return `roaming` from the documented object.
+- Twilio: error 21610 (recipient replied STOP) and an inbound `OptOutType=STOP` (Advanced Opt-Out) revoke consent for the channel, so later sends stop at the consent check instead of failing at Twilio. Error 21611 (sender queue full) is retried.
+- Telegram: long texts with `&`, `<` or `>` are no longer cut inside an HTML entity (the Bot API refused them); the 4096 limit counts visible characters.
+- Webhook URLs, Twilio status callbacks, signed file links and the webhook raw-body capture follow `api.rest.prefix`. With a custom prefix every webhook used to fail the signature check.
+- Outgoing texts are never cut inside an emoji.
+- `Retry-After` given as an HTTP date is honoured (capped at 24 hours).
+
+### Documentation
+
+- `docs/audits/2026-11-20-provider-apis.md`: audit of all four provider APIs against their official specs and docs.
+
 ## [1.1.2](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.1...messagegate-v1.1.2) (2026-11-18)
 
 

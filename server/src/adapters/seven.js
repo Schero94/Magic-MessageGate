@@ -13,6 +13,20 @@
  *   DELIVERED, NOTDELIVERED, BUFFERED, TRANSMITTED, ACCEPTED, EXPIRED,
  *   REJECTED, FAILED.
  * - Webhooks are signed like requests (see utils/signatures.js).
+ *
+ * Re-read 2026-11-20 (provider audit, docs/audits/2026-11-20-provider-apis.md):
+ * - `text` "may not exceed 1520 characters" (official OpenAPI,
+ *   github.com/seven-io/api-schemes json/openapi.json); longer texts are
+ *   refused with code 401, so the adapter cuts at 1520 like the SMS path
+ *   cuts at 1600 for Twilio.
+ * - Return codes (docs.seven.io/en/rest-api/endpoints/sms): 101 "sending to
+ *   at least one recipient failed" (one recipient here, so it failed), 402
+ *   duplicate within 180 seconds (the first one was sent), 403 daily limit
+ *   for this recipient, 407001-407005 declined / country blocked / number
+ *   blocked / recipient unsubscribed / price limit, 500 no credit, 501
+ *   spending limit, 900-903 authentication.
+ * - There is no sandbox or debug switch for POST /api/sms; every accepted
+ *   SMS is billed.
  * - https://docs.seven.io/en/rest-api/endpoints/lookup (read 2026-11-11):
  *   GET /api/lookup/hlr?number=…, fields `valid_number` (valid | not_valid |
  *   unknown), `reachable` (reachable | absent | bad_number | unknown),
@@ -21,13 +35,19 @@
  *   Paid per request (0.01 EUR per seven.io price list).
  */
 const { request } = require('./http');
+const { safeSlice } = require('../utils/template-engine');
 
 const DEFAULT_BASE = 'https://gateway.seven.io';
 
+/** Longest `text` seven.io accepts (official OpenAPI: "may not exceed 1520 characters"). */
+const MAX_TEXT = 1520;
+
 /** Return codes that prove nothing was sent and a later try can work. */
 const TRANSIENT = new Set(['500', '403']);
-/** Return codes that point at the account configuration. */
-const ACCOUNT = new Set(['201', '900', '901', '902', '903']);
+/** Return codes that point at the account configuration (no credit, spending limit, auth, sender). */
+const ACCOUNT = new Set(['201', '500', '501', '900', '901', '902', '903']);
+/** Recipient opted out at seven.io: consent for SMS is revoked. */
+const OPTED_OUT = new Set(['407004']);
 /** Return codes where the SMS may already have been sent. */
 const AMBIGUOUS = new Set(['402', '600']);
 
@@ -47,13 +67,14 @@ module.exports = {
   channel: 'sms',
   provider: 'seven',
   DLR_STATUS,
+  MAX_TEXT,
 
   /**
    * @param {{config: object, to: string, payload: {text: string}, messageId?: string, settings?: object, fetchImpl?: Function}} input
    * @returns {Promise<{outcome: string, providerMessageId: string|null, code: string|null, retryAfterMs: number|null, accountProblem: boolean}>}
    */
   async send({ config, to, payload, messageId, settings, fetchImpl }) {
-    const form = new URLSearchParams({ to, text: payload.text });
+    const form = new URLSearchParams({ to, text: safeSlice(payload.text, MAX_TEXT) });
     if (config.senderId) form.set('from', config.senderId);
     if (messageId) form.set('foreign_id', String(messageId).slice(0, 64));
     const res = await request({
@@ -87,9 +108,29 @@ module.exports = {
         accountProblem: false,
       };
     }
-    const code = `SEVEN_${success || 'UNKNOWN'}`;
-    if (TRANSIENT.has(success))
-      return { outcome: 'transient', providerMessageId: null, code, retryAfterMs: null, accountProblem: false };
+    // One recipient per request: 101 ("at least one recipient failed") means
+    // this one failed, and the message entry carries the reason.
+    const messageError = first && first.success === false && first.error ? String(first.error).slice(0, 20) : '';
+    const reason = success === '101' && /^\d{3,6}$/.test(messageError) ? messageError : success;
+    const code = `SEVEN_${reason || 'UNKNOWN'}`;
+    if (TRANSIENT.has(reason))
+      return {
+        outcome: 'transient',
+        providerMessageId: null,
+        code,
+        retryAfterMs: null,
+        accountProblem: ACCOUNT.has(reason),
+      };
+    if (success === '101' && first?.success === false) {
+      return {
+        outcome: 'rejected',
+        providerMessageId: null,
+        code,
+        retryAfterMs: null,
+        accountProblem: ACCOUNT.has(reason),
+        optedOut: OPTED_OUT.has(reason),
+      };
+    }
     if (AMBIGUOUS.has(success) || success === '101' || !success) {
       return {
         outcome: 'ambiguous',
@@ -105,6 +146,7 @@ module.exports = {
       code,
       retryAfterMs: null,
       accountProblem: ACCOUNT.has(success),
+      optedOut: OPTED_OUT.has(success),
     };
   },
 
@@ -141,7 +183,9 @@ module.exports = {
       valid: word(j.valid_number),
       reachable: word(j.reachable),
       ported: word(j.ported),
-      roaming: typeof j.roaming === 'string' ? word(j.roaming) : null,
+      // The official schema documents `roaming` as an object with `status`
+      // (unknown | roaming | not_roaming); older answers sent a string.
+      roaming: typeof j.roaming === 'string' ? word(j.roaming) : word(j.roaming?.status),
       network: typeof carrier.name === 'string' ? carrier.name.slice(0, 60) : null,
       networkType: word(carrier.network_type),
     };

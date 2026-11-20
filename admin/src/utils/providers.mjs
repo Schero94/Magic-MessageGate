@@ -147,3 +147,29 @@ export function credentialPayload(provider, values, channel = PROVIDER_CHANNEL[p
   }
   return config;
 }
+
+/**
+ * Where the owner enters an account's webhook URL, per provider. seven.io
+ * posts form fields unless the hook's request method is JSON, which
+ * MessageGate needs to read delivery reports and replies
+ * (https://docs.seven.io/en/rest-api/endpoints/webhooks).
+ *
+ * @param {(id: string, fallback: string, values?: object) => string} t - Translator.
+ * @param {string} provider
+ * @returns {string}
+ */
+export function webhookHint(t, provider) {
+  if (provider === 'seven') {
+    return t(
+      'accounts.webhookUrl.seven',
+      'seven.io dashboard > Developer > Webhooks: add this URL for the events "dlr" and "sms_mo" with the request method JSON.'
+    );
+  }
+  if (provider === 'twilio') {
+    return t(
+      'accounts.webhookUrl.twilio',
+      'Twilio Console: use it as the status callback and the incoming message webhook of the number or Messaging Service.'
+    );
+  }
+  return t('accounts.webhookUrl.hint', 'Enter it in the provider console for delivery and read receipts.');
+}
