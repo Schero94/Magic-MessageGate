@@ -21,6 +21,10 @@ Key facts for code generation:
 - Tests: `providers.mode: 'sandbox'` (or `sandboxConfig()` from `strapi-plugin-magic-messagegate/testing`), magic numbers `+4915550000001`-`008`, `sandbox.simulateInbound(...)`.
 - Events on `strapi.eventHub`: `messagegate.message.queued|sent|delivered|read|failed|uncertain|expired|discarded|fallback|received`, `messagegate.media.ready|failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable`, `messagegate.template.status-changed`. Payloads contain no phone numbers or text.
 
+## Used by
+
+No companies are listed yet. Using Magic MessageGate in production? Add your company: https://github.com/Schero94/Magic-MessageGate/issues/new?template=showcase.yml
+
 ## Docs
 
 - [Documentation site](https://schero94.github.io/Magic-MessageGate/): overview, API limits, screenshots, install, API, configuration, security, FAQ
