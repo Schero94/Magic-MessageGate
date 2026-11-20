@@ -1,0 +1,30 @@
+{
+  "examples": {
+    "dlr": {
+      "data": {
+        "msg_id": "77149843739",
+        "status": "TRANSMITTED",
+        "timestamp": "2021-08-24 08:08:00.000000"
+      },
+      "webhook_event": "dlr",
+      "webhook_timestamp": "2021-08-24T08:08:00+02:00"
+    },
+    "sms_mo": {
+      "data": {
+        "id": "681590",
+        "message_type": "SMS",
+        "sender": "49176123456789",
+        "system": "491771783130",
+        "text": "Hello World",
+        "time": "1605878104"
+      },
+      "webhook_event": "sms_mo",
+      "webhook_timestamp": "2020-12-02 11:55:44"
+    }
+  },
+  "source": {
+    "machineReadable": false,
+    "note": "Official JSON examples from the docs page",
+    "url": "https://docs.seven.io/en/rest-api/webhooks"
+  }
+}

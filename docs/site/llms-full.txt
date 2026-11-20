@@ -489,11 +489,16 @@ Details are in the [changelog](https://github.com/Schero94/Magic-MessageGate/blo
 ```bash
 npm ci
 npm run lint && npm run format:check
-npm test          # unit tests, provider contract tests with local fakes, 8 processes on SQLite
+npm test          # unit tests, contract tests against the providers' official specs, 8 processes on SQLite
 npm run test:pg   # 8 processes on PostgreSQL (set MG_TEST_PG_URL)
 npm run test:admin # admin entry points in React StrictMode
+npm run test:live # opt-in: real Meta, Twilio, seven.io and Telegram APIs (your own credentials)
 npm run build && npm run verify
 ```
+
+**Provider contracts.** Every adapter request is checked offline against the provider's own pinned specification: Meta's official WhatsApp OpenAPI, Twilio's `twilio-oai`, seven.io's `api-schemes`, and the Telegram Bot API tables (Telegram publishes no OpenAPI). The specs' examples are fed back through the adapters and webhook handlers. Sources, pins and the defects found in the official specs: [docs/contract-tests.md](https://github.com/Schero94/Magic-MessageGate/blob/main/docs/contract-tests.md). The provider audit behind them: [docs/audits/2026-11-20-provider-apis.md](https://github.com/Schero94/Magic-MessageGate/blob/main/docs/audits/2026-11-20-provider-apis.md).
+
+**Live tests.** `npm run test:live` uses safe modes where providers offer them (Twilio test credentials and magic numbers, the Meta test number, your own Telegram chat) and only spends money or changes webhooks with explicit switches. Keys, switches and the webhook end-to-end runs through a cloudflared tunnel: [docs/live-tests.md](https://github.com/Schero94/Magic-MessageGate/blob/main/docs/live-tests.md).
 
 `npm run test:admin` renders every admin entry point (the seven sections of the plugin page, the template editor, the homepage widget, and the message, send, contact, number check and account dialogs) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 

@@ -90,7 +90,7 @@ test('meta: template send request shape, bearer token and wamid', async () => {
     recipient_type: 'individual',
     to: TO,
     type: 'template',
-    template: { name: 'order_shipped', language: { code: 'de' }, components: [] },
+    template: { name: 'order_shipped', language: { policy: 'deterministic', code: 'de' }, components: [] },
   });
 });
 
