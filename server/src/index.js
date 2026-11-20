@@ -15,6 +15,7 @@ const controllers = require('./controllers');
 const services = require('./services');
 const { createRawBodyMiddleware } = require('./utils/raw-body');
 const { registerActions } = require('./permissions');
+const { restPrefixOf } = require('./core/context');
 
 const timers = new WeakMap();
 
@@ -40,7 +41,9 @@ function every(fn, ms) {
 
 module.exports = {
   register({ strapi }) {
-    strapi.server.use(createRawBodyMiddleware({ pathPrefix: '/api/magic-messagegate/webhooks/' }));
+    // Content API routes live under `api.rest.prefix` (default `/api`).
+    const prefix = restPrefixOf(strapi.config.get('api.rest.prefix', '/api'));
+    strapi.server.use(createRawBodyMiddleware({ pathPrefix: `${prefix}/magic-messagegate/webhooks/` }));
   },
 
   async bootstrap({ strapi }) {

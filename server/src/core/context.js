@@ -24,10 +24,27 @@ const { adapterFor } = require('../adapters');
  * @property {string} nodeId
  * @property {object|null} magicMail - Magic Mail email-router service when installed.
  * @property {string} publicUrl
+ * @property {string} apiBase - `publicUrl` plus the REST prefix and plugin id, e.g. `https://cms.example.test/api/magic-messagegate`.
  * @property {string} [encryptionKey]
  * @property {{get: Function, localPath?: Function, fetchRemote?: Function}|null} files - Media library access.
  * @property {(provider: string) => object|null} adapter - Provider adapter (live or sandbox).
  */
+
+/**
+ * Normalises Strapi's `api.rest.prefix` (default `/api`,
+ * https://docs.strapi.io/cms/configurations/api): one leading slash, no
+ * trailing slash.
+ *
+ * @param {string|undefined|null} prefix
+ * @returns {string} e.g. `/api`, `/v1`, or `` for an empty prefix.
+ */
+function restPrefixOf(prefix) {
+  if (prefix === undefined || prefix === null) return '/api';
+  const trimmed = String(prefix)
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
+  return trimmed ? `/${trimmed}` : '';
+}
 
 /**
  * @param {object} input
@@ -48,6 +65,7 @@ function createContext(input) {
     nodeId: input.nodeId || `${os.hostname().slice(0, 30)}:${process.pid}:${crypto.randomBytes(3).toString('hex')}`,
     magicMail: input.magicMail || null,
     publicUrl: String(input.publicUrl || config.publicUrl || '').replace(/\/+$/, ''),
+    apiBase: `${String(input.publicUrl || config.publicUrl || '').replace(/\/+$/, '')}${restPrefixOf(input.restPrefix)}/magic-messagegate`,
     encryptionKey: config.encryptionKey,
     files: input.files || null,
     adapter: (provider) => adapterFor(provider, config.providers.mode),
@@ -83,4 +101,4 @@ function parseJson(text, fallback) {
   }
 }
 
-module.exports = { createContext, newId, parseJson };
+module.exports = { createContext, newId, parseJson, restPrefixOf };

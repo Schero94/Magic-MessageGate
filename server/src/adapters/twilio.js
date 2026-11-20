@@ -45,6 +45,12 @@ const CONTENT_BASE = 'https://content.twilio.com';
 
 /** Twilio error codes that are about the recipient (permanent). */
 const RECIPIENT_CODES = new Set([21211, 21214, 21408, 21610, 21612, 21614, 63021, 63035, 63036]);
+/**
+ * 21610 "Attempt to send to unsubscribed recipient": the recipient replied
+ * STOP and Twilio blocks every further message from this sender until they
+ * reply START (https://www.twilio.com/docs/api/errors/21610).
+ */
+const OPTED_OUT_CODES = new Set([21610]);
 /** Twilio error codes about the account or sender configuration. */
 const ACCOUNT_CODES = new Set([20003, 20404, 21212, 21606, 21659, 30007]);
 
@@ -124,7 +130,9 @@ module.exports = {
     const twilioCode = Number(res.json?.code);
     if (Number.isFinite(twilioCode)) {
       const code = `TWILIO_${twilioCode}`;
-      if (twilioCode === 20429)
+      // 20429 too many requests; 21611 the From number's queue is full
+      // (https://www.twilio.com/docs/api/errors/21611): nothing was sent.
+      if (twilioCode === 20429 || twilioCode === 21611)
         return {
           outcome: 'transient',
           providerMessageId: null,
@@ -139,6 +147,7 @@ module.exports = {
           code,
           retryAfterMs: null,
           accountProblem: ACCOUNT_CODES.has(twilioCode),
+          optedOut: OPTED_OUT_CODES.has(twilioCode),
         };
       }
     }

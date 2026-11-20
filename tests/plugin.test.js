@@ -304,3 +304,44 @@ test('admin API: a paid number lookup needs contacts.manage; the free check does
   await admin.lookup(ctx);
   assert.equal(ctx.status, 200);
 });
+
+test('a custom api.rest.prefix is used for the raw-body middleware and every public URL', async () => {
+  const { restPrefixOf } = require('../server/src/core/context');
+  assert.equal(restPrefixOf(undefined), '/api');
+  assert.equal(restPrefixOf('/v1/'), '/v1');
+  assert.equal(restPrefixOf('v2'), '/v2');
+  assert.equal(restPrefixOf(''), '');
+
+  const strapi = await fakeStrapi();
+  const get = strapi.config.get;
+  strapi.config.get = (key, fallback) => (key === 'api.rest.prefix' ? '/v1' : get(key, fallback));
+  const middlewares = [];
+  strapi.server = { use: (fn) => middlewares.push(fn) };
+  plugin.register({ strapi });
+  const [mw] = middlewares;
+  const ctx = {
+    method: 'POST',
+    path: '/v1/magic-messagegate/webhooks/meta/x',
+    req: Object.assign(require('node:stream').Readable.from([Buffer.from('{}')]), {
+      headers: { 'content-type': 'application/json' },
+    }),
+    state: {},
+    get: () => '',
+  };
+  await mw(ctx, async () => {});
+  assert.equal(ctx.state.messagegateRaw?.toString(), '{}', 'webhooks under /v1 keep their raw body');
+
+  const { createCore } = require('../server/src/core');
+  const { sqliteKnex, TEST_KEY } = require('./helpers/core');
+  const core = createCore({
+    knex: sqliteKnex(),
+    config: { encryptionKey: TEST_KEY, publicUrl: 'https://cms.example.test' },
+    restPrefix: '/v1',
+  });
+  await core.init();
+  const account = await core.accounts.create({ channel: 'sms', provider: 'seven', name: 'SMS', config: CREDS.seven });
+  assert.match(
+    account.webhookUrl,
+    /^https:\/\/cms\.example\.test\/v1\/magic-messagegate\/webhooks\/seven\/[A-Za-z0-9_-]+$/
+  );
+});

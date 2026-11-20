@@ -16,6 +16,7 @@
  */
 const { request } = require('./http');
 const { fetchLimited } = require('../utils/download');
+const { truncateTelegramText } = require('../utils/template-engine');
 
 /** getFile downloads are limited to 20 MB by the Bot API. */
 const MAX_DOWNLOAD = 20 * 1024 * 1024;
@@ -88,7 +89,10 @@ module.exports = {
     let method = 'sendMessage';
     let body = {
       chat_id: to,
-      text: String(payload.text).slice(0, MAX_TEXT),
+      // `text` is HTML (parse_mode HTML). Cutting the raw string could split an
+      // entity such as `&amp;` and the Bot API would refuse the message, so the
+      // limit is applied to visible characters.
+      text: truncateTelegramText(payload.text, MAX_TEXT),
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
     };

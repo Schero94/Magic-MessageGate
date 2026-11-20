@@ -165,6 +165,40 @@ const telegramVisibleLength = (html) =>
   ].length;
 
 /**
+ * Cuts a text to at most `max` UTF-16 code units without splitting a
+ * surrogate pair (an emoji cut in half is an invalid string that providers
+ * reject or render as a replacement character).
+ *
+ * @param {string} value
+ * @param {number} max
+ * @returns {string}
+ */
+function safeSlice(value, max) {
+  const text = String(value ?? '');
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
+/**
+ * Shortens escaped Telegram text (no tags, only `&amp;`-style entities) to
+ * `max` visible characters without cutting an entity in half, which the Bot
+ * API would refuse with "can't parse entities". Text with tags is returned
+ * unchanged: templates are length-checked when they are rendered.
+ *
+ * @param {string} html
+ * @param {number} max - Visible characters (entities count as one).
+ * @returns {string}
+ */
+function truncateTelegramText(html, max) {
+  const value = String(html ?? '');
+  if (/<[^>]*>/.test(value) || telegramVisibleLength(value) <= max) return value;
+  const tokens = value.match(/&(?:#\d+|#x[0-9a-f]+|[a-z]+);|[\s\S]/giu) || [];
+  return tokens.slice(0, max).join('');
+}
+
+/**
  * Validates variables and renders a template for its channel.
  *
  * @param {{channel: string, key: string, language: string, parameterFormat?: string, content: object, variables: Array<object>}} template
@@ -272,7 +306,7 @@ function render(template, input, options = {}) {
   }
 
   if (template.channel === 'rcs') {
-    const text = fill(c.text, values, format).slice(0, 1600);
+    const text = safeSlice(fill(c.text, values, format), 1600);
     const title = c.title ? fill(c.title, values, format).slice(0, 200) : null;
     if (c.contentSid) {
       // Twilio Content templates use numbered variables ({{1}}, {{2}} …) in
@@ -284,19 +318,21 @@ function render(template, input, options = {}) {
         preview: [title, text].filter(Boolean).join('\n\n'),
       };
     }
-    const body = title ? `${title}\n\n${text}`.slice(0, 1600) : text;
+    const body = title ? safeSlice(`${title}\n\n${text}`, 1600) : text;
     return {
       payload: { kind: 'rcs', text: body, ...(c.mediaUrl ? { mediaUrl: c.mediaUrl } : {}) },
       preview: body,
     };
   }
 
-  const text = fill(c.text, values, format).slice(0, 1600);
+  const text = safeSlice(fill(c.text, values, format), 1600);
   return { payload: { text }, preview: text, sms: smsSegments(text) };
 }
 
 module.exports = {
   telegramVisibleLength,
+  truncateTelegramText,
+  safeSlice,
   placeholders,
   templateVariables,
   variablesSchema,

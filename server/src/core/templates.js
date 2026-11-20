@@ -524,7 +524,7 @@ function createTemplates(ctx, deps) {
           language: dto.language.split('_')[0],
           variables: Object.fromEntries(order.map((name, i) => [String(i + 1), sample(name)])),
           card,
-          text: numbered(c.title ? `${c.title}\n\n${c.text}` : c.text).slice(0, 1600),
+          text: engine.safeSlice(numbered(c.title ? `${c.title}\n\n${c.text}` : c.text), 1600),
         },
         settings: ctx.config.providers.twilio,
         fetchImpl: ctx.fetchImpl,

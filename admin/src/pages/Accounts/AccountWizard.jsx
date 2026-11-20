@@ -19,6 +19,7 @@ import {
   credentialPayload,
   fieldsFor,
   validateCredentials,
+  webhookHint,
 } from '../../utils/providers.mjs';
 import { reasonText } from '../../utils/reasons';
 
@@ -614,10 +615,7 @@ export const AccountWizard = ({ mode, account, hasDefault, onClose, onSaved }) =
                     name="webhookUrl"
                     label={t('accounts.webhookUrl', 'Webhook URL')}
                     value={result.account.webhookUrl}
-                    hint={t(
-                      'accounts.webhookUrl.hint',
-                      'Enter it in the provider console for delivery and read receipts.'
-                    )}
+                    hint={webhookHint(t, result.account.provider)}
                   />
                 ) : null}
                 {result.account.provider === 'meta' && !result.steps ? (
