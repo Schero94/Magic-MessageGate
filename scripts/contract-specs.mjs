@@ -471,7 +471,7 @@ mkdirSync(outDir, { recursive: true });
 for (const [name, value] of Object.entries(files)) {
   const target = path.join(outDir, name);
   const next = stable(value);
-  let current = '';
+  let current;
   try {
     current = readFileSync(target, 'utf8');
   } catch {
