@@ -504,6 +504,12 @@ npm run build && npm run verify
 
 Issues and pull requests are welcome at [github.com/Schero94/Magic-MessageGate](https://github.com/Schero94/Magic-MessageGate/issues). See [CONTRIBUTING.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONTRIBUTING.md) for the checks, the 8-process acceptance run and releases; the design decisions are in [CONCEPT.md](https://github.com/Schero94/Magic-MessageGate/blob/main/CONCEPT.md).
 
+## Showcase your company
+
+Using Magic MessageGate in production? [Add your company](https://github.com/Schero94/Magic-MessageGate/issues/new?template=showcase.yml) to the "Used by" section of the [documentation site](https://schero94.github.io/Magic-MessageGate/#used-by). The form asks for the company name, the website, a logo (PNG, JPEG or WebP, uploaded to the issue) and an optional one-line description.
+
+A maintainer reviews every request and approves it with the `showcase-approved` label. `.github/workflows/showcase.yml` then validates the issue with `.github/scripts/showcase.mjs`, converts the logo to a WebP of at most 320 x 160 pixels and opens a `docs:` pull request that changes `docs/site/showcase.json`. The logo appears on the site after that pull request is merged. Website links carry `rel="ugc noopener"`. To remove an entry, open an issue that names the company; a maintainer then applies the `showcase-remove` label.
+
 ## License
 
 [MIT](https://github.com/Schero94/Magic-MessageGate/blob/main/LICENSE)
