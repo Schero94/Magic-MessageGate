@@ -203,7 +203,7 @@ export const MessageDetailModal = ({ id, onClose, onChanged }) => {
                         )}
                       </Typography>
                       {m.errorCode ? (
-                        <Typography variant="pi" textColor="neutral600">
+                        <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
                           {m.errorCode}
                         </Typography>
                       ) : null}

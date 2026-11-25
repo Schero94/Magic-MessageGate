@@ -5,6 +5,7 @@ import { useNotification } from '@strapi/strapi/admin';
 
 import { ConfirmAction } from '../../components/ui/ConfirmAction';
 import { CopyField } from '../../components/ui/CopyField';
+import { Notice } from '../../components/ui/Notice';
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { SectionFrame } from '../../components/ui/SectionFrame';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/States';
@@ -76,11 +77,7 @@ const SevenWebhook = ({ account, canManage, onChanged }) => {
         <Typography variant="pi" textColor="neutral600">
           {view.detail}
         </Typography>
-        {view.conflict ? (
-          <Typography variant="pi" textColor="warning700">
-            {view.conflict}
-          </Typography>
-        ) : null}
+        {view.conflict ? <Notice variant="warning">{view.conflict}</Notice> : null}
         {account.webhookRegistration?.at ? (
           <Typography variant="pi" textColor="neutral600">
             {t('accounts.health.checked', 'Checked')} <RelativeTime value={account.webhookRegistration.at} />

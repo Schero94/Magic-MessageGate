@@ -267,7 +267,7 @@ export const MessagesPage = () => {
                     <Flex gap={2} wrap="wrap">
                       <MessageStatusBadge status={m.status} />
                       {m.errorCode ? (
-                        <Typography variant="pi" textColor="neutral600">
+                        <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
                           {m.errorCode}
                         </Typography>
                       ) : null}
