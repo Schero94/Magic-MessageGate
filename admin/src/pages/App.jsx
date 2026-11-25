@@ -81,7 +81,13 @@ const App = () => {
         ) : (
           <>
             <Page.Title>{`${labels[active]} | MessageGate`}</Page.Title>
-            <Box paddingLeft={10} paddingRight={10} paddingTop={6}>
+            {/* Same responsive gutters as Layouts.Header (RESPONSIVE_DEFAULT_SPACING in @strapi/admin),
+                so the tab strip starts at the h1 edge on phones and tablets too. */}
+            <Box
+              paddingLeft={{ initial: 4, medium: 6, large: 10 }}
+              paddingRight={{ initial: 4, medium: 6, large: 10 }}
+              paddingTop={{ initial: 4, large: 6 }}
+            >
               <Tabs.Root
                 value={active}
                 onValueChange={(value) => navigate(`${BASE}/${SECTIONS.find((s) => s.value === value).path}`)}
