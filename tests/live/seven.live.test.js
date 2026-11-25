@@ -177,3 +177,54 @@ test(
     });
   }
 );
+
+const registerSkip = optIn('seven', {
+  flags: { LIVE_WEBHOOKS: 'creates and deletes two webhooks for https://example.com on the account' },
+});
+
+test(
+  'seven live: "Test connection" registers dlr and sms_mo hooks once; "Remove webhook" deletes only them (issue #17)',
+  { skip: registerSkip, timeout: 120_000 },
+  async () => {
+    // example.com is reserved for documentation (RFC 2606); seven.io only
+    // stores the URL, nothing is delivered there because nothing is sent.
+    const { core, account } = await setup('https://example.com');
+    const apiConfig = { config: { apiKey: env.SEVEN_API_KEY } };
+    const before = await seven.listHooks(apiConfig);
+    assert.equal(before.ok, true, `GET /api/hooks answered ${before.code}`);
+    try {
+      const first = await core.accounts.testConnection(account.id);
+      assert.equal(first.ok, true);
+      assert.equal(first.info.webhook, 'registered', `registration: ${first.info.webhookCode}`);
+      const second = await core.accounts.testConnection(account.id);
+      assert.equal(second.info.webhook, 'registered');
+      const listed = await seven.listHooks(apiConfig);
+      const mine = listed.hooks.filter((h) => h.targetUrl === account.webhookUrl);
+      assert.deepEqual(
+        mine.map((h) => `${h.eventType}:${h.requestMethod}`).sort(),
+        ['dlr:JSON', 'sms_mo:JSON'],
+        'one JSON hook per event, no duplicates'
+      );
+      const removed = await core.accounts.removeWebhook(account.id);
+      assert.equal(removed.removed, 2);
+      const after = await seven.listHooks(apiConfig);
+      assert.equal(after.hooks.filter((h) => h.targetUrl === account.webhookUrl).length, 0);
+      assert.deepEqual(
+        after.hooks.map((h) => h.id).sort(),
+        before.hooks.map((h) => h.id).sort(),
+        'hooks that existed before are untouched'
+      );
+      console.log(
+        JSON.stringify({
+          sevenRegistration: { existingHooks: before.hooks.length, created: mine.length, removed: removed.removed },
+        })
+      );
+    } finally {
+      // Clean up even when an assertion failed: only hooks for this test's URL.
+      const left = await seven.listHooks(apiConfig);
+      for (const h of left.hooks.filter((x) => x.targetUrl === account.webhookUrl)) {
+        await seven.deleteHook({ ...apiConfig, id: h.id });
+      }
+    }
+  }
+);

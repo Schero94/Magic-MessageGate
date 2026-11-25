@@ -35,6 +35,7 @@ const EVENT_MAP = Object.freeze({
   'messagegate.message.read': 'message.status',
   'messagegate.message.failed': 'message.status',
   'messagegate.message.uncertain': 'message.status',
+  'messagegate.message.held': 'message.status',
   'messagegate.message.expired': 'message.status',
 });
 

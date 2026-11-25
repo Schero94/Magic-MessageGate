@@ -33,6 +33,25 @@
  *   `ported`, `roaming`, `current_carrier {network_code, name, country,
  *   network_type}`. Refused with code 501 when the spending limit is reached.
  *   Paid per request (0.01 EUR per seven.io price list).
+ *
+ * Webhook management (read 2026-11-24, issue #17):
+ * - https://docs.seven.io/en/rest-api/endpoints/webhooks
+ *   GET /api/hooks answers `{ success, code, hooks: [{ id, target_url,
+ *   headers, event_type, event_filter, request_method, enabled, created }] }`
+ *   (`id` is a string there). POST /api/hooks takes the form fields
+ *   `target_url`, `event_type`, optional `event_filter`, `headers` and
+ *   `request_method` (POST = form-encoded, the default; GET = query; JSON =
+ *   HTTP POST with a JSON body) and answers `{ success, code, id,
+ *   error_message }` (`id` an integer). DELETE /api/hooks with the form
+ *   field `id` answers the same shape.
+ * - Official OpenAPI (github.com/seven-io/api-schemes json/openapi.json,
+ *   pinned in tests/contract/specs/seven.json): the same operations; its
+ *   GET schema wraps the list as `data[].hooks` (one hook per item), which
+ *   contradicts the reference page. Both shapes are read.
+ * - https://docs.seven.io/en/rest-api/signing : webhooks are signed with the
+ *   account's signing key (Developer area → API settings). A hook has no
+ *   secret of its own, so registration sends none; the owner still enters
+ *   the signing key in MessageGate.
  */
 const { request } = require('./http');
 const { safeSlice } = require('../utils/template-engine');
@@ -51,6 +70,44 @@ const OPTED_OUT = new Set(['407004']);
 /** Return codes where the SMS may already have been sent. */
 const AMBIGUOUS = new Set(['402', '600']);
 
+/** Event types MessageGate registers: status reports and inbound SMS. */
+const HOOK_EVENTS = Object.freeze(['dlr', 'sms_mo']);
+
+/**
+ * Error code of a hooks API answer that did not succeed.
+ *
+ * @param {{outcome: string, json: any, code: string|null}} res
+ * @returns {string}
+ */
+function hookError(res) {
+  const j = res.json;
+  if (res.outcome !== 'accepted') return res.code || 'SEVEN_HOOKS';
+  // Auth failures answer a bare return code (900-903) instead of an object.
+  if (typeof j === 'number' || (typeof j === 'string' && /^\d{3,6}$/.test(j))) return `SEVEN_${j}`;
+  const raw = j && typeof j === 'object' ? j.code : null;
+  return raw !== null && raw !== undefined && /^[A-Za-z0-9_]{1,20}$/.test(String(raw)) ? `SEVEN_${raw}` : 'SEVEN_HOOKS';
+}
+
+/**
+ * Normalises one hook entry from GET /api/hooks.
+ *
+ * @param {any} h
+ * @returns {{id: string, targetUrl: string, eventType: string, requestMethod: string, enabled: boolean}|null}
+ */
+function toHook(h) {
+  if (!h || typeof h !== 'object') return null;
+  const id = typeof h.id === 'number' || typeof h.id === 'string' ? String(h.id) : '';
+  if (!/^\d{1,20}$/.test(id) || typeof h.target_url !== 'string') return null;
+  return {
+    id,
+    targetUrl: h.target_url.slice(0, 2048),
+    eventType: typeof h.event_type === 'string' ? h.event_type.slice(0, 20) : '',
+    requestMethod: typeof h.request_method === 'string' ? h.request_method.toUpperCase().slice(0, 8) : 'POST',
+    // `enabled` is documented as a boolean; a missing value counts as enabled.
+    enabled: h.enabled !== false && h.enabled !== 0 && h.enabled !== '0',
+  };
+}
+
 /** Maps seven.io DLR values to MessageGate status updates. */
 const DLR_STATUS = Object.freeze({
   DELIVERED: 'delivered',
@@ -68,6 +125,7 @@ module.exports = {
   provider: 'seven',
   DLR_STATUS,
   MAX_TEXT,
+  HOOK_EVENTS,
 
   /**
    * @param {{config: object, to: string, payload: {text: string}, messageId?: string, settings?: object, fetchImpl?: Function}} input
@@ -212,5 +270,81 @@ module.exports = {
       code: Number.isFinite(amount) ? null : 'SEVEN_AUTH',
       info: { balance: Number.isFinite(amount) ? amount : null },
     };
+  },
+
+  /**
+   * Lists the account's webhooks (GET /api/hooks).
+   *
+   * @param {{config: object, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null, hooks: Array<{id: string, targetUrl: string, eventType: string, requestMethod: string, enabled: boolean}>}>}
+   */
+  async listHooks({ config, settings, fetchImpl }) {
+    const res = await request({
+      url: `${settings?.baseUrl || DEFAULT_BASE}/api/hooks`,
+      method: 'GET',
+      headers: { 'x-api-key': config.apiKey, accept: 'application/json' },
+      timeoutMs: 10_000,
+      fetchImpl,
+    });
+    const j = res.json;
+    if (res.outcome !== 'accepted' || !j || typeof j !== 'object' || Array.isArray(j) || j.success === false) {
+      return { ok: false, code: hookError(res), hooks: [] };
+    }
+    // Reference page: `hooks: [...]`; official OpenAPI: `data: [{ hooks: {...} }]`.
+    let raw = null;
+    if (Array.isArray(j.hooks)) raw = j.hooks;
+    else if (Array.isArray(j.data)) raw = j.data.map((d) => d?.hooks);
+    if (!raw) return { ok: false, code: 'SEVEN_HOOKS', hooks: [] };
+    return { ok: true, code: null, hooks: raw.slice(0, 500).map(toHook).filter(Boolean) };
+  },
+
+  /**
+   * Registers a webhook (POST /api/hooks) with the request method JSON, the
+   * only body MessageGate reads.
+   *
+   * @param {{config: object, targetUrl: string, eventType: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null, id: string|null}>}
+   */
+  async createHook({ config, targetUrl, eventType, settings, fetchImpl }) {
+    const form = new URLSearchParams({ target_url: targetUrl, event_type: eventType, request_method: 'JSON' });
+    const res = await request({
+      url: `${settings?.baseUrl || DEFAULT_BASE}/api/hooks`,
+      headers: {
+        'x-api-key': config.apiKey,
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: form.toString(),
+      timeoutMs: 10_000,
+      fetchImpl,
+    });
+    const id = res.json?.id;
+    if (res.outcome === 'accepted' && res.json?.success === true && /^\d{1,20}$/.test(String(id ?? ''))) {
+      return { ok: true, code: null, id: String(id) };
+    }
+    return { ok: false, code: hookError(res), id: null };
+  },
+
+  /**
+   * Deletes a webhook by id (DELETE /api/hooks, form field `id`).
+   *
+   * @param {{config: object, id: string, settings?: object, fetchImpl?: Function}} input
+   * @returns {Promise<{ok: boolean, code: string|null}>}
+   */
+  async deleteHook({ config, id, settings, fetchImpl }) {
+    const res = await request({
+      url: `${settings?.baseUrl || DEFAULT_BASE}/api/hooks`,
+      method: 'DELETE',
+      headers: {
+        'x-api-key': config.apiKey,
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ id: String(id) }).toString(),
+      timeoutMs: 10_000,
+      fetchImpl,
+    });
+    const ok = res.outcome === 'accepted' && res.json?.success === true;
+    return { ok, code: ok ? null : hookError(res) };
   },
 };

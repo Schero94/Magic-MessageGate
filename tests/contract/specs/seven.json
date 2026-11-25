@@ -172,6 +172,127 @@
         }
       },
       "/hooks": {
+        "delete": {
+          "description": "Deletes a hook by its ID.",
+          "operationId": "HooksDelete",
+          "requestBody": {
+            "content": {
+              "application/x-www-form-urlencoded": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "description": "The ID of the webhook you want to delete.",
+                      "type": "integer",
+                      "x-ms-summary": "ID"
+                    }
+                  },
+                  "required": ["id"],
+                  "type": "object"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "error_message": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "integer"
+                      },
+                      "success": {
+                        "type": "boolean"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "OK"
+            }
+          },
+          "summary": "Delete Hook",
+          "tags": ["Hooks"]
+        },
+        "get": {
+          "description": "Query the active webhooks of your account.",
+          "operationId": "HooksList",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "data": {
+                        "items": {
+                          "properties": {
+                            "hooks": {
+                              "properties": {
+                                "created": {
+                                  "type": "string"
+                                },
+                                "enabled": {
+                                  "type": "boolean"
+                                },
+                                "event_filter": {
+                                  "type": "string"
+                                },
+                                "event_type": {
+                                  "enum": [
+                                    "all",
+                                    "rcs",
+                                    "sms_mo",
+                                    "dlr",
+                                    "voice_call",
+                                    "voice_status",
+                                    "voice_dtmf",
+                                    "tracking"
+                                  ],
+                                  "type": "string"
+                                },
+                                "headers": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "request_method": {
+                                  "enum": ["GET", "JSON", "POST"],
+                                  "type": "string"
+                                },
+                                "target_url": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "success": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "OK"
+            }
+          },
+          "summary": "List Hooks",
+          "tags": ["Hooks"]
+        },
         "post": {
           "description": "Creates a hook",
           "operationId": "HooksCreate",

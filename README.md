@@ -182,7 +182,7 @@ Then, in **Accounts → Connect a channel → WhatsApp**, pick one of two ways:
 
 Copy the webhook URL shown for the account into the provider's status and inbound settings so delivery receipts and replies arrive.
 
-- **seven.io**: dashboard → Developer → Webhooks, add the URL for the events `dlr` and `sms_mo` and set the **request method to JSON**. seven.io's default sends form fields, which MessageGate ignores (the Strapi log then says so). SMS texts are cut at 1520 characters, seven.io's limit.
+- **seven.io**: **Test connection** registers the webhook for you through seven.io's [hooks API](https://docs.seven.io/en/rest-api/endpoints/webhooks): one hook each for `dlr` (status reports) and `sms_mo` (inbound SMS), request method **JSON**, pointing at the account's webhook URL. It needs a public https `server.url`. Existing hooks are read first, so testing again creates no duplicates, and hooks MessageGate did not create are never changed or deleted. The account card shows the result; **Remove webhook** deletes only the hooks MessageGate created (deleting the account does the same). seven.io signs webhooks with the account's signing key (Developer → API settings), so enter it in MessageGate as well. A hook added by hand must also use the request method JSON: seven.io's default sends form fields, which MessageGate ignores (the Strapi log then says so, and the account card warns about a non-JSON hook for its URL). SMS texts are cut at 1520 characters, seven.io's limit.
 - **Twilio**: set the URL as the status callback and the incoming-message webhook of the number or Messaging Service. With Advanced Opt-Out, a `STOP` reply revokes consent even when the keyword is not in MessageGate's own list, and Twilio error 21610 (recipient unsubscribed) does the same.
 
 Webhook URLs and file links follow `api.rest.prefix` from `config/api` (default `/api`).
@@ -272,7 +272,7 @@ strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) 
 });
 ```
 
-Events: `messagegate.message.queued`, `.sent`, `.delivered`, `.read`, `.failed`, `.uncertain`, `.expired`, `.discarded`, `.fallback`, `.received`, plus `messagegate.media.ready`, `messagegate.media.failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable` and `messagegate.template.status-changed`. Every event is emitted by exactly one process. The same events can go to your own https endpoint, signed with HMAC-SHA256 (Settings → Outgoing webhook; verification code in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#outgoing-webhook)).
+Events: `messagegate.message.queued`, `.held`, `.sent`, `.delivered`, `.read`, `.failed`, `.uncertain`, `.expired`, `.discarded`, `.fallback`, `.received`, plus `messagegate.media.ready`, `messagegate.media.failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable` and `messagegate.template.status-changed`. Every event is emitted by exactly one process. The same events can go to your own https endpoint, signed with HMAC-SHA256 (Settings → Outgoing webhook; verification code in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#outgoing-webhook)).
 
 ## Receiving messages
 
@@ -383,7 +383,7 @@ const { sandboxConfig } = require('strapi-plugin-magic-messagegate/testing');
 module.exports = { 'magic-messagegate': { enabled: true, config: sandboxConfig() } };
 ```
 
-In sandbox mode no message leaves the server. Test numbers decide the outcome: `+4915550000002` is read, `+4915550000003` is not on WhatsApp (falls back), `+4915550000004` can't receive RCS, `+4915550000005` stays undelivered, `+4915550000007` ends uncertain, `+4915550000008` is an unassigned number; every other number is delivered. `sandbox.simulateInbound({ to, text, buttonPayload, media: { mime, size } })` (or `POST /api/magic-messagegate/sandbox/inbound`) feeds replies and files into your automations, and `drain(strapi)` runs the workers right away. The full table is in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#sandbox-tests-and-ci).
+In sandbox mode no message leaves the server. Test numbers decide the outcome: `+4915550000002` is read, `+4915550000003` is not on WhatsApp (falls back), `+4915550000004` can't receive RCS, `+4915550000005` stays undelivered, `+4915550000007` ends uncertain, `+4915550000008` is an unassigned number, `+4915550000009` is held by Meta (template pacing); every other number is delivered. `sandbox.simulateInbound({ to, text, buttonPayload, media: { mime, size } })` (or `POST /api/magic-messagegate/sandbox/inbound`) feeds replies and files into your automations, and `drain(strapi)` runs the workers right away. The full table is in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#sandbox-tests-and-ci).
 
 ## Permissions
 
@@ -455,6 +455,9 @@ No. E-mail is an opt-in last step of the chain that hands the message to Magic M
 
 **Why is a message "uncertain"?**
 The request reached the provider, but no clear answer came back in time. The provider may or may not have the message, so sending again could deliver it twice. An admin can retry it (after confirming the risk) or mark it as sent.
+
+**Why is a WhatsApp message "held by Meta"?**
+Meta paces new or low-rated marketing and utility templates: it accepts the message but holds it until it has feedback on the template ([template pacing](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-pacing)). The message is neither sent nor failed yet, so MessageGate shows it as _held_ and waits for Meta's status webhook: usually within an hour Meta either sends it (it becomes sent, then delivered) or drops it with error 132015 because the template was paused (it becomes failed, and the fallback chain runs). Don't send it again while it is held.
 
 **Can I send free text on WhatsApp?**
 Only within 24 hours after the contact last wrote to you. Outside that window, Meta requires an approved template.

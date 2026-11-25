@@ -152,7 +152,8 @@ export function credentialPayload(provider, values, channel = PROVIDER_CHANNEL[p
  * Where the owner enters an account's webhook URL, per provider. seven.io
  * posts form fields unless the hook's request method is JSON, which
  * MessageGate needs to read delivery reports and replies
- * (https://docs.seven.io/en/rest-api/endpoints/webhooks).
+ * (https://docs.seven.io/en/rest-api/endpoints/webhooks); "Test connection"
+ * registers it that way (issue #17).
  *
  * @param {(id: string, fallback: string, values?: object) => string} t - Translator.
  * @param {string} provider
@@ -162,7 +163,7 @@ export function webhookHint(t, provider) {
   if (provider === 'seven') {
     return t(
       'accounts.webhookUrl.seven',
-      'seven.io dashboard > Developer > Webhooks: add this URL for the events "dlr" and "sms_mo" with the request method JSON.'
+      'Registered at seven.io automatically on "Test connection" (events "dlr" and "sms_mo", request method JSON).'
     );
   }
   if (provider === 'twilio') {
@@ -172,4 +173,74 @@ export function webhookHint(t, provider) {
     );
   }
   return t('accounts.webhookUrl.hint', 'Enter it in the provider console for delivery and read receipts.');
+}
+
+/**
+ * Card view of a seven.io webhook registration (`account.webhookRegistration`).
+ *
+ * @param {(id: string, fallback: string, values?: object) => string} t - Translator.
+ * @param {{status: string, code: string|null, managed: number, conflict: boolean} | null} registration
+ * @param {(code: string | null) => string | null} explain - Reason text for a code.
+ * @returns {{tone: string, label: string, detail: string, canRemove: boolean, conflict: string | null}}
+ */
+export function webhookRegistrationView(t, registration, explain) {
+  const conflict = registration?.conflict
+    ? t(
+        'accounts.webhook.conflict',
+        'seven.io also has a webhook for this URL that does not use the request method JSON. MessageGate cannot read it: delete it in the seven.io dashboard (Developer > Webhooks).'
+      )
+    : null;
+  const canRemove = Boolean(registration?.managed);
+  const notRegistered = t('accounts.webhook.notRegistered', 'Not registered');
+  if (!registration) {
+    return {
+      tone: 'neutral',
+      label: notRegistered,
+      detail: t('accounts.webhook.notTested', '"Test connection" registers the webhook at seven.io.'),
+      canRemove: false,
+      conflict: null,
+    };
+  }
+  const reason = registration.code ? explain(registration.code) || registration.code : '-';
+  switch (registration.status) {
+    case 'registered':
+      return {
+        tone: 'success',
+        label: t('accounts.webhook.registered', 'Registered'),
+        detail: canRemove
+          ? t(
+              'accounts.webhook.registered.detail',
+              'seven.io sends status reports and inbound SMS to this URL as JSON.'
+            )
+          : t(
+              'accounts.webhook.registered.foreign',
+              'A webhook created outside MessageGate already sends status reports and inbound SMS to this URL as JSON. MessageGate leaves it alone.'
+            ),
+        canRemove,
+        conflict,
+      };
+    case 'removed':
+      return {
+        tone: 'neutral',
+        label: t('accounts.webhook.removed', 'Removed'),
+        detail: t(
+          'accounts.webhook.removed.detail',
+          'Status reports and inbound SMS no longer arrive. "Test connection" registers the webhook again.'
+        ),
+        canRemove,
+        conflict,
+      };
+    case 'skipped':
+      return { tone: 'warning', label: notRegistered, detail: reason, canRemove, conflict };
+    default:
+      return {
+        tone: 'danger',
+        label: t('accounts.webhook.failed', 'Registration failed'),
+        detail: t('accounts.webhook.failed.detail', '{reason} Check the API key and use "Test connection" again.', {
+          reason,
+        }),
+        canRemove,
+        conflict,
+      };
+  }
 }

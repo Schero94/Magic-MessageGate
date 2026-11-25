@@ -4,7 +4,7 @@
  * One local HTTP server that imitates the provider APIs used by the adapters:
  *   /meta/<version>/...        WhatsApp Cloud API (Graph)
  *   /telegram/bot<token>/...   Telegram Bot API
- *   /seven/api/...             seven.io
+ *   /seven/api/...             seven.io (hooks are kept per server, like the real account)
  *   /twilio/2010-04-01/...     Twilio Messaging
  *   /lookup/v2/PhoneNumbers/.. Twilio Lookup v2
  *
@@ -25,6 +25,9 @@ const ROUTES = [
   ['telegram.answerCallback', 'POST', /^\/telegram\/bot[^/]+\/answerCallbackQuery$/],
   ['telegram.file', 'GET', /^\/telegram\/file\/bot[^/]+\/(.+)$/],
   ['seven.hlr', 'GET', /^\/seven\/api\/lookup\/hlr$/],
+  ['seven.hooksList', 'GET', /^\/seven\/api\/hooks$/],
+  ['seven.hooksCreate', 'POST', /^\/seven\/api\/hooks$/],
+  ['seven.hooksDelete', 'DELETE', /^\/seven\/api\/hooks$/],
   ['twilio.content', 'POST', /^\/content\/v1\/Content$/],
   [
     'twilio.media',
@@ -164,6 +167,33 @@ const DEFAULTS = {
     },
   }),
   'seven.balance': () => ({ status: 200, json: { amount: 12.5, currency: 'EUR' } }),
+  // docs.seven.io/en/rest-api/endpoints/webhooks: list `{success, code, hooks}`,
+  // create/delete `{success, code, id, error_message}`.
+  'seven.hooksList': (req) => ({
+    status: 200,
+    json: { success: true, code: null, hooks: req.state.hooks.map((h) => ({ ...h })) },
+  }),
+  'seven.hooksCreate': (req) => {
+    const id = 12000 + req.state.hooks.length + req.state.hookSeq++;
+    req.state.hooks.push({
+      id: String(id),
+      target_url: req.form?.target_url,
+      headers: '',
+      event_type: req.form?.event_type,
+      event_filter: req.form?.event_filter || null,
+      request_method: req.form?.request_method || 'POST',
+      enabled: true,
+      created: '2026-11-24 10:00:00',
+    });
+    return { status: 200, json: { success: true, code: null, id, error_message: null } };
+  },
+  'seven.hooksDelete': (req) => {
+    const at = req.state.hooks.findIndex((h) => h.id === String(req.form?.id));
+    if (at < 0)
+      return { status: 200, json: { success: false, code: 'not_found', id: null, error_message: 'Not found' } };
+    const [hook] = req.state.hooks.splice(at, 1);
+    return { status: 200, json: { success: true, code: null, id: Number(hook.id), error_message: null } };
+  },
   'twilio.send': () => ({ status: 201, json: { sid: `SM${hex(++counter)}`, status: 'queued' } }),
   'twilio.account': () => ({ status: 200, json: { status: 'active' } }),
   'twilio.lookup': (req) => ({
@@ -183,7 +213,7 @@ async function startFakeProviders() {
   const queues = new Map();
   const requests = [];
   const hanging = [];
-  const state = { delayMs: 0 };
+  const state = { delayMs: 0, hooks: [], hookSeq: 0 };
   const sockets = new Set();
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -212,6 +242,7 @@ async function startFakeProviders() {
         : null;
       const record = { route, method: req.method, url: req.url, headers: req.headers, raw, json, form, match };
       requests.push(record);
+      Object.defineProperty(record, 'state', { value: state, enumerable: false });
       if (!route) {
         res.writeHead(404, { 'content-type': 'application/json' });
         res.end('{"error":"not found"}');
@@ -279,12 +310,15 @@ async function startFakeProviders() {
     },
     /** Hung requests (for tests that kill a process mid-request). */
     hanging,
+    /** seven.io hooks registered on this fake account (shape of GET /api/hooks). */
+    sevenHooks: state.hooks,
     count: (route) => requests.filter((r) => r.route === route).length,
     of: (route) => requests.filter((r) => r.route === route),
     reset() {
       queues.clear();
       requests.length = 0;
       state.delayMs = 0;
+      state.hooks.length = 0;
     },
     close: () =>
       new Promise((resolve) => {

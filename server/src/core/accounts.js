@@ -11,9 +11,14 @@ const { T } = require('../store/schema');
 const { PROVIDERS_BY_CHANNEL } = require('../adapters');
 const { seal, tryOpen, randomToken } = require('../utils/crypto');
 const { MessageGateError } = require('../utils/errors');
+const { checkUrl } = require('../utils/url-guard');
+const { acquireLease, releaseLease } = require('../store/coordination');
 const { newId, parseJson } = require('./context');
 
 const PURPOSE = 'account-config';
+
+/** seven.io event types MessageGate registers on "Test connection". */
+const SEVEN_HOOK_EVENTS = ['dlr', 'sms_mo'];
 
 /** Embedded Signup result events that create an account (Meta session events). */
 const SIGNUP_EVENTS = ['FINISH', 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING'];
@@ -183,6 +188,7 @@ function createAccounts(ctx) {
       config: publicConfig,
       secretsSet,
       webhookUrl: webhookUrl(row),
+      webhookRegistration: registrationDto(row),
       health: {
         status: row.health_status || 'unknown',
         code: row.health_code || null,
@@ -191,6 +197,204 @@ function createAccounts(ctx) {
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at),
     };
+  }
+
+  /**
+   * Public view of the provider webhook registration (seven.io only): no
+   * hook ids, no URLs, no secrets.
+   *
+   * @param {object} row
+   * @returns {{status: string, code: string|null, at: number|null, events: string[], managed: number, conflict: boolean}|null}
+   */
+  function registrationDto(row) {
+    if (row.provider !== 'seven') return null;
+    const state = parseJson(row.webhook_state, null);
+    if (!state || typeof state !== 'object') return null;
+    return {
+      status: String(state.status || 'unknown'),
+      code: state.code ? String(state.code) : null,
+      at: Number(state.at) || null,
+      events: Array.isArray(state.events) ? state.events.map(String) : [],
+      managed: Array.isArray(state.managed) ? state.managed.length : 0,
+      conflict: Boolean(state.conflict),
+    };
+  }
+
+  /**
+   * Which of MessageGate's event types the listed hooks deliver to `target`
+   * in a body MessageGate reads (request method JSON, enabled; `all` covers
+   * every event), and whether a hook for `target` uses another method.
+   *
+   * @param {Array<{targetUrl: string, eventType: string, requestMethod: string, enabled: boolean}>} hooks
+   * @param {string} target
+   * @returns {{events: string[], conflict: boolean}}
+   */
+  function coverage(hooks, target) {
+    const mine = hooks.filter((h) => h.targetUrl === target);
+    const events = SEVEN_HOOK_EVENTS.filter((ev) =>
+      mine.some((h) => h.enabled && h.requestMethod === 'JSON' && (h.eventType === ev || h.eventType === 'all'))
+    );
+    const conflict = mine.some((h) => h.enabled && h.requestMethod !== 'JSON');
+    return { events, conflict };
+  }
+
+  /**
+   * @param {number} id
+   * @param {object} state
+   * @returns {Promise<void>}
+   */
+  async function saveWebhookState(id, state) {
+    await ctx
+      .knex(T.accounts)
+      .where('id', id)
+      .update({ webhook_state: JSON.stringify({ ...state, at: ctx.now() }) });
+  }
+
+  /**
+   * Runs `fn` while holding the per-account webhook lease, so two admins (or
+   * two processes) never register the same hooks twice.
+   *
+   * @template T
+   * @param {object} row
+   * @param {() => Promise<T>} fn
+   * @returns {Promise<T|null>} null when another process holds the lease.
+   */
+  async function withHookLease(row, fn) {
+    const key = `seven-hooks:${row.id}`;
+    // One holder per call: two requests in the same process must not share the lease.
+    const holder = `${crypto.randomBytes(4).toString('hex')}:${ctx.nodeId}`.slice(0, 64);
+    if (!(await acquireLease(ctx.knex, key, holder, 60_000, ctx.now()))) return null;
+    try {
+      return await fn();
+    } finally {
+      await releaseLease(ctx.knex, key, holder);
+    }
+  }
+
+  /**
+   * Registers the seven.io webhooks of an account (issue #17): one hook per
+   * event type (`dlr`, `sms_mo`) with request method JSON for the account's
+   * webhook URL. Idempotent: existing hooks are listed first and an event
+   * already delivered to this URL as JSON is not registered again. Hooks
+   * MessageGate did not create are never changed or deleted; a hook for this
+   * URL with another request method is reported as `conflict`.
+   *
+   * Docs: https://docs.seven.io/en/rest-api/endpoints/webhooks (read 2026-11-24).
+   *
+   * @param {object} row
+   * @param {object} config - Decrypted config.
+   * @returns {Promise<{status: 'registered'|'failed'|'skipped', code: string|null}>}
+   * @sideeffect Creates hooks at seven.io; stores their ids in `webhook_state`.
+   */
+  async function registerSevenHooks(row, config) {
+    const target = webhookUrl(row);
+    if (!target) {
+      await saveWebhookState(row.id, { status: 'skipped', code: 'PUBLIC_URL_MISSING', events: [], managed: [] });
+      return { status: 'skipped', code: 'PUBLIC_URL_MISSING' };
+    }
+    if (!checkUrl(target).ok) {
+      // seven.io cannot reach a local or plain-http URL; nothing is registered.
+      await saveWebhookState(row.id, { status: 'skipped', code: 'PUBLIC_URL_NOT_PUBLIC', events: [], managed: [] });
+      return { status: 'skipped', code: 'PUBLIC_URL_NOT_PUBLIC' };
+    }
+    const adapter = ctx.adapter('seven');
+    const settings = ctx.config.providers.seven || {};
+    const outcome = await withHookLease(row, async () => {
+      const fresh = (await api.getRowById(row.id)) || row;
+      const previous = parseJson(fresh.webhook_state, {}) || {};
+      const listed = await adapter.listHooks({ config, settings, fetchImpl: ctx.fetchImpl });
+      if (!listed.ok) {
+        await saveWebhookState(row.id, { ...previous, status: 'failed', code: listed.code });
+        return { status: 'failed', code: listed.code };
+      }
+      // Keep only the hooks MessageGate created that still exist with the URL they were created for.
+      const managed = (Array.isArray(previous.managed) ? previous.managed : []).filter((m) =>
+        listed.hooks.some((h) => h.id === m.id && h.targetUrl === m.targetUrl)
+      );
+      const { events: covered, conflict } = coverage(listed.hooks, target);
+      let code = null;
+      for (const eventType of SEVEN_HOOK_EVENTS) {
+        if (covered.includes(eventType)) continue;
+        const created = await adapter.createHook({
+          config,
+          targetUrl: target,
+          eventType,
+          settings,
+          fetchImpl: ctx.fetchImpl,
+        });
+        if (created.ok) {
+          managed.push({ id: created.id, event: eventType, targetUrl: target });
+          covered.push(eventType);
+        } else code = code || created.code;
+      }
+      const status = code ? 'failed' : 'registered';
+      await saveWebhookState(row.id, { status, code, events: covered, managed, conflict, targetUrl: target });
+      return { status, code };
+    });
+    if (!outcome) return { status: 'failed', code: 'WEBHOOK_BUSY' };
+    if (outcome.status === 'failed') {
+      ctx.log.warn(`[magic-messagegate] seven.io webhook registration failed (${outcome.code})`);
+    }
+    return outcome;
+  }
+
+  /**
+   * Deletes the seven.io hooks MessageGate created for an account. A hook is
+   * deleted only when seven.io still lists it with the id and URL recorded
+   * at creation; everything else is left alone.
+   *
+   * @param {object} row
+   * @param {object} config
+   * @returns {Promise<{removed: number, failed: number, code: string|null}>}
+   * @throws {MessageGateError} PROVIDER_ERROR when the hook list cannot be read.
+   * @sideeffect Deletes hooks at seven.io; updates `webhook_state`.
+   */
+  async function removeSevenHooks(row, config) {
+    const adapter = ctx.adapter('seven');
+    const settings = ctx.config.providers.seven || {};
+    const outcome = await withHookLease(row, async () => {
+      const fresh = (await api.getRowById(row.id)) || row;
+      const previous = parseJson(fresh.webhook_state, {}) || {};
+      const managed = Array.isArray(previous.managed) ? previous.managed : [];
+      const listed = await adapter.listHooks({ config, settings, fetchImpl: ctx.fetchImpl });
+      if (!listed.ok) throw new MessageGateError('PROVIDER_ERROR', undefined, { reason: listed.code });
+      const kept = [];
+      let removed = 0;
+      let code = null;
+      for (const m of managed) {
+        const hook = listed.hooks.find((h) => h.id === m.id);
+        // Gone already, or the id now belongs to another URL: not ours to delete.
+        if (!hook || hook.targetUrl !== m.targetUrl) continue;
+        const res = await adapter.deleteHook({ config, id: m.id, settings, fetchImpl: ctx.fetchImpl });
+        if (res.ok) removed += 1;
+        else {
+          kept.push(m);
+          code = code || res.code;
+        }
+      }
+      const deleted = new Set(managed.filter((m) => !kept.includes(m)).map((m) => m.id));
+      const target = webhookUrl(fresh);
+      const left = target
+        ? coverage(
+            listed.hooks.filter((h) => !deleted.has(h.id)),
+            target
+          )
+        : { events: [], conflict: false };
+      let status = 'removed';
+      if (code) status = 'failed';
+      else if (left.events.length) status = 'registered';
+      await saveWebhookState(row.id, {
+        status,
+        code,
+        events: left.events,
+        managed: kept,
+        conflict: left.conflict,
+        targetUrl: previous.targetUrl || target,
+      });
+      return { removed, failed: kept.length, code };
+    });
+    if (!outcome) throw new MessageGateError('STATE_CHANGED');
+    return outcome;
   }
 
   /**
@@ -378,7 +582,35 @@ function createAccounts(ctx) {
     async remove(documentId) {
       const row = await api.getRow(documentId);
       if (!row) throw new MessageGateError('NOT_FOUND');
+      // Hooks MessageGate registered at seven.io would keep calling a URL that
+      // no longer exists (seven.io retries for days): delete them first, best effort.
+      if (row.provider === 'seven' && registrationDto(row)?.managed) {
+        try {
+          await removeSevenHooks(row, decrypt(row));
+        } catch (error) {
+          ctx.log.warn(
+            `[magic-messagegate] seven.io webhooks of a deleted account were not removed (${error?.details?.reason || error?.code || 'ERROR'})`
+          );
+        }
+      }
       await ctx.knex(T.accounts).where('id', row.id).del();
+    },
+
+    /**
+     * Removes the provider webhooks MessageGate registered for an account
+     * (seven.io). Hooks created elsewhere stay.
+     *
+     * @param {string} documentId
+     * @returns {Promise<{removed: number, failed: number, code: string|null, account: object}>}
+     * @throws {MessageGateError} NOT_FOUND, INVALID_REQUEST (not a seven.io account), PROVIDER_ERROR, STATE_CHANGED
+     * @sideeffect Deletes hooks at seven.io.
+     */
+    async removeWebhook(documentId) {
+      const row = await api.getRow(documentId);
+      if (!row) throw new MessageGateError('NOT_FOUND');
+      if (row.provider !== 'seven') throw new MessageGateError('INVALID_REQUEST', undefined, { field: 'provider' });
+      const result = await removeSevenHooks(row, decrypt(row));
+      return { ...result, account: toDto(await api.getRowById(row.id)) };
     },
 
     /**
@@ -400,13 +632,6 @@ function createAccounts(ctx) {
         });
     },
 
-    /**
-     * Calls the provider to check the credentials. For Telegram the webhook
-     * is (re)registered when a public URL is configured.
-     *
-     * @param {string} documentId
-     * @returns {Promise<{ok: boolean, code: string|null, info: object}>}
-     */
     /**
      * Completes Meta Embedded Signup on the server: exchanges the 30-second
      * code for a business token, subscribes the app to the WABA, registers a
@@ -507,9 +732,14 @@ function createAccounts(ctx) {
 
     /**
      * Calls the provider with the stored credentials and records the health.
+     * When the credentials work, the webhook is registered too: Telegram with
+     * `setWebhook`, seven.io with its hooks API (`info.webhook` is
+     * `registered`, `failed` or `skipped`, `info.webhookCode` says why).
      *
      * @param {string} documentId
      * @returns {Promise<{ok: boolean, code: string|null, info: object}>}
+     * @throws {MessageGateError} NOT_FOUND
+     * @sideeffect Records the account health; may register provider webhooks.
      */
     async testConnection(documentId) {
       const row = await api.getRow(documentId);
@@ -535,6 +765,12 @@ function createAccounts(ctx) {
               config_sealed: seal({ ...config, botUsername: result.info.username }, PURPOSE, ctx.encryptionKey),
             });
         }
+      }
+      if (result.ok && row.provider === 'seven') {
+        // seven.io: register the status report and inbound SMS hooks (issue #17).
+        const hook = await registerSevenHooks(row, config);
+        result.info.webhook = hook.status;
+        if (hook.code) result.info.webhookCode = hook.code;
       }
       await api.setHealth(row.id, result.ok, result.code);
       return result;
