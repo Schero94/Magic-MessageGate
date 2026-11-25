@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed (provider contracts)
+
+- **Telegram contract snapshot updated to Bot API 10.5** (2026-11-22), regenerated with `npm run contract:specs`. Two 10.5 changes touch what MessageGate calls, and neither needs a code change:
+  - `getMe` returns the new `BotFullInfo` instead of `User`, and the getMe-only fields were removed from `User`. Test connection reads only `username`, which `BotFullInfo` still has. The snapshot now includes `BotFullInfo`, and a contract test checks the `getMe` request and the response.
+  - A bot can choose (`setMySettings`, `callback_query_mode`) to get `inline_message_id` instead of `message` for buttons in its own messages. The webhook already takes the chat from `from.id` when `message` is missing, so the press is still recorded for the contact and answered, without a link to the outbound message. A contract test covers this update shape.
+- `npm run contract:specs` formats the snapshots with the repository's Prettier config before it compares or writes them. Before, `-- --check` reported every snapshot as changed because the committed files are Prettier-formatted.
+
 # [1.3.0](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.2.0...messagegate-v1.3.0) (2026-11-25)
 
 

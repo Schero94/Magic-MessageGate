@@ -185,3 +185,83 @@ test('telegram contract: documented updates are verified and processed', async (
   const inbound = (await core.inbound.list({})).results;
   assert.deepEqual(inbound.map((m) => m.kind).sort(), ['button', 'location', 'media', 'text']);
 });
+
+test('telegram contract: Test connection calls getMe and reads a documented BotFullInfo (Bot API 10.5)', async () => {
+  // Bot API 10.5 split BotFullInfo out of User: getMe returns BotFullInfo and the getMe-only
+  // fields (can_join_groups, supports_inline_queries, ...) are no longer part of User.
+  assert.ok(Number(doc.botApiVersion) >= 10.5, 'snapshot from Bot API 10.5 or newer');
+  assert.deepEqual(method('getMe').properties, {}, 'getMe takes no parameters');
+  assert.equal(doc.types.User.properties.can_join_groups, undefined);
+  const bot = {
+    id: 1,
+    is_bot: true,
+    first_name: 'Synthetic Bot',
+    username: 'synthetic_bot',
+    can_join_groups: true,
+    can_read_all_group_messages: false,
+    supports_guest_queries: false,
+    supports_inline_queries: false,
+    needs_inline_query_location: false,
+    can_connect_to_business: false,
+    has_main_web_app: false,
+    has_topics_enabled: false,
+    allows_users_to_create_topics: false,
+    has_topic_sidebar: false,
+    can_manage_bots: false,
+    supports_join_request_queries: false,
+  };
+  ok(validate(doc, type('BotFullInfo'), bot), 'BotFullInfo');
+  const io = capture();
+  io.answer(200, { ok: true, result: bot });
+  const res = await telegram.testConnection({ config, fetchImpl: io.fetchImpl });
+  const [req] = io.requests;
+  assert.equal(req.method, 'GET');
+  assert.equal(req.url.pathname, `/bot${config.botToken}/getMe`);
+  assert.equal(req.json, null, 'no request body');
+  // The adapter reads only `username`, which BotFullInfo documents.
+  assert.ok(doc.types.BotFullInfo.properties.username);
+  assert.deepEqual(res, { ok: true, code: null, info: { username: 'synthetic_bot' } });
+});
+
+test('telegram contract: a callback query with inline_message_id and no message (Bot API 10.5) is recorded and answered', async () => {
+  // Since 10.5 a bot can choose (setMySettings callback_query_mode) to get inline_message_id
+  // instead of message for buttons in its own messages. The press is still recorded for the
+  // contact of the private chat (from.id), without a link to the outbound message.
+  const io = capture();
+  const core = await makeCore({ fetchImpl: io.fetchImpl });
+  const account = await addAccount(core, 'telegram');
+  const row = await core.accounts.getRow(account.id);
+  const secret = core.accounts.configOf(row).secretToken;
+  const { row: contact } = await core.contacts.upsertByPhone('+4915123456789');
+  const token = await core.contacts.createLinkToken(contact.id);
+  const chat = { id: 12345, type: 'private', first_name: 'Synthetic' };
+  const from = { id: 12345, is_bot: false, first_name: 'Synthetic' };
+  const headers = { 'x-telegram-bot-api-secret-token': secret };
+  const start = { update_id: 1, message: { message_id: 1, date: 1800000000, chat, from, text: `/start ${token}` } };
+  assert.equal((await core.webhooks.telegram(row, { headers, body: start })).status, 200);
+
+  const update = {
+    update_id: 2,
+    callback_query: {
+      id: '4382bfdwdsb323b2e0',
+      from,
+      inline_message_id: 'AgAAAN3wAQB7_synthetic',
+      chat_instance: '-1',
+      data: 'yes',
+    },
+  };
+  assert.ok(doc.types.CallbackQuery.properties.inline_message_id, 'inline_message_id is documented');
+  assert.ok(!doc.types.CallbackQuery.required.includes('message'), 'message is optional');
+  ok(validate(doc, type('Update'), update), 'update with inline_message_id');
+  io.answer(200, { ok: true, result: true });
+  assert.equal((await core.webhooks.telegram(row, { headers, body: update })).status, 200);
+
+  const inbound = (await core.inbound.list({})).results;
+  assert.equal(inbound.length, 1);
+  assert.equal(inbound[0].kind, 'button');
+  assert.equal(inbound[0].buttonPayload, 'yes');
+  assert.equal(inbound[0].replyTo, null, 'no outbound message to link to');
+  const answers = io.requests.filter((req) => req.url.pathname.endsWith('/answerCallbackQuery'));
+  assert.equal(answers.length, 1, 'the loading indicator is stopped');
+  ok(validate(doc, method('answerCallbackQuery'), answers[0].json), 'answerCallbackQuery body');
+});

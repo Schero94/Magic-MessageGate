@@ -67,7 +67,7 @@ Magic MessageGate is a Strapi 5 plugin that sends template-based messages over *
 
 ### 2.2 Telegram (Bot API)
 
-- API: `https://api.telegram.org/bot<token>/<method>`, Bot API 10.4 (2026-11-09). `sendMessage` with `chat_id`, `text`, `parse_mode` (`HTML` default in MessageGate; MarkdownV2 escaping is error-prone), `link_preview_options`, `reply_markup`. Text limit verified in P2: 4,096 characters after entity parsing (section 3.1).
+- API: `https://api.telegram.org/bot<token>/<method>`, Bot API 10.5 (2026-11-22; `getMe` returns `BotFullInfo`). `sendMessage` with `chat_id`, `text`, `parse_mode` (`HTML` default in MessageGate; MarkdownV2 escaping is error-prone), `link_preview_options`, `reply_markup`. Text limit verified in P2: 4,096 characters after entity parsing (section 3.1).
 - Webhook: `setWebhook` with `url`, `secret_token` (1–256 chars, `A-Za-z0-9_-`), `allowed_updates`, `drop_pending_updates`; Telegram sends `X-Telegram-Bot-Api-Secret-Token`. Webhooks and `getUpdates` are mutually exclusive. Source: <https://core.telegram.org/bots/api>.
 - Linking: MessageGate issues a one-time token (base64url, ≤ 64 chars, allowed `A-Za-z0-9_-`) and shows `https://t.me/<bot>?start=<token>`. The bot receives `/start <token>`; MessageGate binds `chat_id` to the Strapi user/contact and burns the token. Source: <https://core.telegram.org/bots/features#deep-linking>.
 - Rate limits: about 1 message per second per chat, 20 per minute per group, about 30 per second overall (paid broadcasts up to 1,000/s). Exceeding returns 429. Source: <https://core.telegram.org/bots/faq>.

@@ -5,7 +5,7 @@
     "url": "https://core.telegram.org/bots/api"
   },
   "spec": {
-    "botApiVersion": "10.4",
+    "botApiVersion": "10.5",
     "methods": {
       "answerCallbackQuery": {
         "additionalProperties": false,
@@ -163,7 +163,7 @@
                 "type": "string"
               }
             ],
-            "description": "Thumbnail of the file sent; can be ignored if thumbnail generation for the file is supported server-side. The thumbnail should be in JPEG format and less than 200 kB in size. A thumbnail's width and height should not exceed 320. Ignored if the file is not uploaded using multipart/form-data. Thumbnails can't be reused and can be only uploaded as a new file, so you can pass “attach://<file_attach_name>” if the thumbnail was uploaded using multipart/form-data under <file_attach_name>. More information on Sending Files »"
+            "description": "Thumbnail of the file sent; can be ignored if thumbnail generation for the file is supported server-side. The thumbnail should be in JPEG format and less than 200 kB in size. A thumbnail's width and height should not exceed 320. Ignored if the file is not uploaded using multipart/form-data. Thumbnails can't be reused and can only be uploaded as a new file, so you can pass “attach://<file_attach_name>” if the thumbnail was uploaded using multipart/form-data under <file_attach_name>. More information on Sending Files »"
           }
         },
         "required": ["document"],
@@ -377,7 +377,7 @@
         "additionalProperties": false,
         "properties": {
           "allowed_updates": {
-            "description": "A JSON-serialized list of the update types you want your bot to receive. For example, specify [\"message\", \"edited_channel_post\", \"callback_query\"] to only receive updates of these types. See Update for a complete list of available update types. Specify an empty list to receive all update types except chat_member, message_reaction, and message_reaction_count (default). If not specified, the previous setting will be used. Please note that this parameter doesn't affect updates created before the call to the setWebhook, so unwanted updates may be received for a short period of time.",
+            "description": "A JSON-serialized list of the update types you want your bot to receive. For example, specify [\"message\", \"edited_channel_post\", \"callback_query\"] to only receive updates of these types. See Update for a complete list of available update types. Specify an empty list to receive all update types except chat_member, message_reaction, and message_reaction_count (default). If not specified, the previous setting will be used. Please note that this parameter doesn't affect updates created before the call to setWebhook, so unwanted updates may be received for a short period of time.",
             "items": {
               "type": "string"
             },
@@ -428,7 +428,7 @@
             "type": "string"
           },
           "file_size": {
-            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.",
+            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this value.",
             "type": "integer"
           },
           "file_unique_id": {
@@ -455,6 +455,103 @@
         "required": ["file_id", "file_unique_id", "duration"],
         "type": "object"
       },
+      "BotFullInfo": {
+        "properties": {
+          "active_usernames": {
+            "description": "Optional. If non-empty, the list of all active usernames of the bot",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "allows_users_to_create_topics": {
+            "description": "True, if the bot allows users to create and delete topics in private chats",
+            "type": "boolean"
+          },
+          "can_connect_to_business": {
+            "description": "True, if the bot can be connected to a user account to manage it",
+            "type": "boolean"
+          },
+          "can_join_groups": {
+            "description": "True, if the bot can be added to groups",
+            "type": "boolean"
+          },
+          "can_manage_bots": {
+            "description": "True, if other bots can be created to be controlled by the bot",
+            "type": "boolean"
+          },
+          "can_read_all_group_messages": {
+            "description": "True, if privacy mode is disabled for the bot",
+            "type": "boolean"
+          },
+          "first_name": {
+            "description": "Bot's first name",
+            "type": "string"
+          },
+          "has_main_web_app": {
+            "description": "True, if the bot has a main Web App",
+            "type": "boolean"
+          },
+          "has_topic_sidebar": {
+            "description": "True, if topics in private chats with the bot are shown in a sidebar",
+            "type": "boolean"
+          },
+          "has_topics_enabled": {
+            "description": "True, if the bot has forum topic mode enabled in private chats",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Unique identifier for this bot. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a 64-bit integer or double-precision float type is safe for storing this identifier.",
+            "type": "integer"
+          },
+          "inline_query_placeholder": {
+            "description": "Optional. Placeholder for inline queries, which is shown in the input field after the bot's username; omitted if the default placeholder is used",
+            "type": "string"
+          },
+          "is_bot": {
+            "const": true,
+            "description": "Always True"
+          },
+          "needs_inline_query_location": {
+            "description": "True, if the bot requests the location of the user with every inline query",
+            "type": "boolean"
+          },
+          "supports_guest_queries": {
+            "description": "True, if the bot supports guest queries from chats it is not a member of",
+            "type": "boolean"
+          },
+          "supports_inline_queries": {
+            "description": "True, if the bot supports inline queries",
+            "type": "boolean"
+          },
+          "supports_join_request_queries": {
+            "description": "True, if the bot supports join request queries and can be assigned to process them",
+            "type": "boolean"
+          },
+          "username": {
+            "description": "Optional. Bot's username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "is_bot",
+          "first_name",
+          "can_join_groups",
+          "can_read_all_group_messages",
+          "supports_guest_queries",
+          "supports_inline_queries",
+          "needs_inline_query_location",
+          "can_connect_to_business",
+          "has_main_web_app",
+          "has_topics_enabled",
+          "allows_users_to_create_topics",
+          "has_topic_sidebar",
+          "can_manage_bots",
+          "supports_join_request_queries"
+        ],
+        "type": "object"
+      },
       "CallbackQuery": {
         "properties": {
           "chat_instance": {
@@ -462,7 +559,7 @@
             "type": "string"
           },
           "data": {
-            "description": "Optional. Data associated with the callback button. Be aware that the message originated the query can contain no callback buttons with this data.",
+            "description": "Optional. Data associated with the callback button. Be aware that the message that originated the query can contain no callback buttons with this data.",
             "type": "string"
           },
           "from": {
@@ -478,7 +575,7 @@
             "type": "string"
           },
           "inline_message_id": {
-            "description": "Optional. Identifier of the message sent via the bot in inline mode, that originated the query",
+            "description": "Optional. Identifier of the message sent via the bot in inline mode, that originated the query. Can also be present for messages sent by the bot, depending on the parameter callback_query_mode of the method setMySettings.",
             "type": "string"
           },
           "message": {
@@ -496,7 +593,7 @@
             "type": "string"
           },
           "id": {
-            "description": "Unique identifier for this chat. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this identifier.",
+            "description": "Unique identifier for this chat. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this identifier.",
             "type": "integer"
           },
           "is_direct_messages": {
@@ -538,7 +635,7 @@
             "type": "string"
           },
           "file_size": {
-            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.",
+            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this value.",
             "type": "integer"
           },
           "file_unique_id": {
@@ -568,7 +665,7 @@
             "type": "string"
           },
           "file_size": {
-            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.",
+            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this value.",
             "type": "integer"
           },
           "file_unique_id": {
@@ -606,7 +703,7 @@
             "type": "object"
           },
           "pay": {
-            "description": "Optional. Specify True, to send a Pay button. Substrings “” and “XTR” in the buttons's text will be replaced with a Telegram Star icon. NOTE: This type of button must always be the first button in the first row and can only be used in invoice messages.",
+            "description": "Optional. Specify True to send a Pay button. Substrings “” and “XTR” in the button's text will be replaced with a Telegram Star icon. NOTE: This type of button must always be the first button in the first row and can only be used in invoice messages.",
             "type": "boolean"
           },
           "style": {
@@ -690,7 +787,7 @@
       "Location": {
         "properties": {
           "heading": {
-            "description": "Optional. The direction in which user is moving, in degrees; 1-360. For active live locations only.",
+            "description": "Optional. The direction in which the user is moving, in degrees; 1-360. For active live locations only.",
             "type": "integer"
           },
           "horizontal_accuracy": {
@@ -752,7 +849,7 @@
           },
           "channel_chat_created": {
             "const": true,
-            "description": "Optional. Service message: the channel has been created. This field can't be received in a message coming through updates, because bot can't be a member of a channel when it is created. It can only be found in reply_to_message if someone replies to a very first message in a channel."
+            "description": "Optional. Service message: the channel has been created. This field can't be received in a message coming through updates, because a bot can't be a member of a channel when it is created. It can only be found in reply_to_message if someone replies to the very first message in a channel."
           },
           "chat": {
             "$ref": "#/types/Chat",
@@ -994,11 +1091,11 @@
             "type": "integer"
           },
           "migrate_from_chat_id": {
-            "description": "Optional. The supergroup has been migrated from a group with the specified identifier. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this identifier.",
+            "description": "Optional. The supergroup has been migrated from a group with the specified identifier. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this identifier.",
             "type": "integer"
           },
           "migrate_to_chat_id": {
-            "description": "Optional. The group has been migrated to a supergroup with the specified identifier. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this identifier.",
+            "description": "Optional. The group has been migrated to a supergroup with the specified identifier. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this identifier.",
             "type": "integer"
           },
           "new_chat_members": {
@@ -1009,7 +1106,7 @@
             "type": "array"
           },
           "new_chat_photo": {
-            "description": "Optional. A chat photo was change to this value",
+            "description": "Optional. A chat photo was changed to this value",
             "items": {
               "$ref": "#/types/PhotoSize"
             },
@@ -1160,7 +1257,7 @@
           },
           "supergroup_chat_created": {
             "const": true,
-            "description": "Optional. Service message: the supergroup has been created. This field can't be received in a message coming through updates, because bot can't be a member of a supergroup when it is created. It can only be found in reply_to_message if someone replies to a very first message in a directly created supergroup."
+            "description": "Optional. Service message: the supergroup has been created. This field can't be received in a message coming through updates, because a bot can't be a member of a supergroup when it is created. It can only be found in reply_to_message if someone replies to the very first message in a directly created supergroup."
           },
           "text": {
             "description": "Optional. For text messages, the actual UTF-8 text of the message",
@@ -1223,7 +1320,7 @@
             "type": "object"
           },
           "write_access_allowed": {
-            "description": "Optional. Service message: the user allowed the bot to write messages after adding it to the attachment or side menu, launching a Web App from a link, or accepting an explicit request from a Web App sent by the method requestWriteAccess",
+            "description": "Optional. Service message: the user allowed the bot to write messages after adding it to the attachment or side menu, launching a Web App from a link, or accepting an explicit request from a Web App sent by the method requestWriteAccess, or the user was invited to the private chat with the bot by the owner of the bot",
             "type": "object"
           }
         },
@@ -1261,7 +1358,7 @@
             "type": "integer"
           },
           "url": {
-            "description": "Optional. For “text_link” only, URL that will be opened after user taps on the text",
+            "description": "Optional. For “text_link” only, URL that will be opened after the user taps on the text",
             "type": "string"
           },
           "user": {
@@ -1301,7 +1398,7 @@
       "ResponseParameters": {
         "properties": {
           "migrate_to_chat_id": {
-            "description": "Optional. The group has been migrated to a supergroup with the specified identifier. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this identifier.",
+            "description": "Optional. The group has been migrated to a supergroup with the specified identifier. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this identifier.",
             "type": "integer"
           },
           "retry_after": {
@@ -1409,7 +1506,7 @@
             "type": "object"
           },
           "chosen_inline_result": {
-            "description": "Optional. The result of an inline query that was chosen by a user and sent to their chat partner. Please see our documentation on the feedback collecting for details on how to enable these updates for your bot.",
+            "description": "Optional. The result of an inline query that was chosen by a user and sent to their chat partner. Please see our documentation on the feedback collecting for details on how to enable these updates for your bot. The updates can also be enabled using the parameter inline_feedback_share_denominator of the method setMySettings.",
             "type": "object"
           },
           "deleted_business_messages": {
@@ -1437,7 +1534,7 @@
             "type": "object"
           },
           "managed_bot": {
-            "description": "Optional. A new bot was created to be managed by the bot, or token or owner of a managed bot was changed",
+            "description": "Optional. A new bot was created to be managed by the bot, or the token or owner of a managed bot was changed",
             "type": "object"
           },
           "message": {
@@ -1449,7 +1546,7 @@
             "type": "object"
           },
           "message_reaction_count": {
-            "description": "Optional. Reactions to a message with anonymous reactions were changed. The bot must be an administrator in the chat and must explicitly specify \"message_reaction_count\" in the list of allowed_updates to receive these updates. The updates are grouped and can be sent with delay up to a few minutes.",
+            "description": "Optional. Reactions to a message with anonymous reactions were changed. The bot must be an administrator in the chat and must explicitly specify \"message_reaction_count\" in the list of allowed_updates to receive these updates. The updates are grouped and can be sent with a delay of up to a few minutes.",
             "type": "object"
           },
           "my_chat_member": {
@@ -1457,7 +1554,7 @@
             "type": "object"
           },
           "poll": {
-            "description": "Optional. New poll state. Bots receive only updates about manually stopped polls and polls, which are sent by the bot.",
+            "description": "Optional. New poll state. Bots receive only updates about manually stopped polls and polls which are sent by the bot.",
             "type": "object"
           },
           "poll_answer": {
@@ -1493,7 +1590,7 @@
             "type": "object"
           },
           "update_id": {
-            "description": "The update's unique identifier. Update identifiers start from a certain positive number and increase sequentially. This identifier becomes especially handy if you're using webhooks, since it allows you to ignore repeated updates or to restore the correct update sequence, should they get out of order. If there are no new updates for at least a week, then identifier of the next update will be chosen randomly instead of sequentially.",
+            "description": "The update's unique identifier. Update identifiers start from a certain positive number and increase sequentially. This identifier becomes especially handy if you're using webhooks, since it allows you to ignore repeated updates or to restore the correct update sequence, should they get out of order. If there are no new updates for at least a week, then the identifier of the next update will be chosen randomly instead of sequentially.",
             "type": "integer"
           },
           "widget_query": {
@@ -1510,40 +1607,12 @@
             "const": true,
             "description": "Optional. True, if this user added the bot to the attachment menu"
           },
-          "allows_users_to_create_topics": {
-            "description": "Optional. True, if the bot allows users to create and delete topics in private chats. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "can_connect_to_business": {
-            "description": "Optional. True, if the bot can be connected to a user account to manage it. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "can_join_groups": {
-            "description": "Optional. True, if the bot can be invited to groups. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "can_manage_bots": {
-            "description": "Optional. True, if other bots can be created to be controlled by the bot. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "can_read_all_group_messages": {
-            "description": "Optional. True, if privacy mode is disabled for the bot. Returned only in getMe.",
-            "type": "boolean"
-          },
           "first_name": {
             "description": "User's or bot's first name",
             "type": "string"
           },
-          "has_main_web_app": {
-            "description": "Optional. True, if the bot has a main Web App. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "has_topics_enabled": {
-            "description": "Optional. True, if the bot has forum topic mode enabled in private chats. Returned only in getMe.",
-            "type": "boolean"
-          },
           "id": {
-            "description": "Unique identifier for this user or bot. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a 64-bit integer or double-precision float type are safe for storing this identifier.",
+            "description": "Unique identifier for this user or bot. This number may have more than 32 significant bits and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a 64-bit integer or double-precision float type is safe for storing this identifier.",
             "type": "integer"
           },
           "is_bot": {
@@ -1561,18 +1630,6 @@
           "last_name": {
             "description": "Optional. User's or bot's last name",
             "type": "string"
-          },
-          "supports_guest_queries": {
-            "description": "Optional. True, if the bot supports guest queries from chats it is not a member of. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "supports_inline_queries": {
-            "description": "Optional. True, if the bot supports inline queries. Returned only in getMe.",
-            "type": "boolean"
-          },
-          "supports_join_request_queries": {
-            "description": "Optional. True, if the bot supports join request queries and can be assigned to process them. Returned only in getMe.",
-            "type": "boolean"
           },
           "username": {
             "description": "Optional. User's or bot's username",
@@ -1638,7 +1695,7 @@
             "type": "string"
           },
           "file_size": {
-            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.",
+            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this value.",
             "type": "integer"
           },
           "file_unique_id": {
@@ -1687,7 +1744,7 @@
             "type": "string"
           },
           "file_size": {
-            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.",
+            "description": "Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type is safe for storing this value.",
             "type": "integer"
           },
           "file_unique_id": {

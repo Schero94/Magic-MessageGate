@@ -3,7 +3,8 @@
 /**
  * Telegram Bot API adapter.
  *
- * Source: https://core.telegram.org/bots/api (Bot API 10.4, read 2026-11-10)
+ * Source: https://core.telegram.org/bots/api (Bot API 10.5, read 2026-11-25)
+ * - getMe (Test connection): returns BotFullInfo since 10.5; only `username` is read.
  * - sendMessage: chat_id, text (1-4096 characters after entity parsing),
  *   parse_mode HTML, link_preview_options.
  * - setWebhook: url, secret_token (1-256 chars, A-Za-z0-9_-) echoed in
