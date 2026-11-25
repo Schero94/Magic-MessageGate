@@ -42,5 +42,5 @@ Severity: **high** = messages or receipts are lost silently, **medium** = wrong 
 ## Open decisions
 
 - Move the Meta default from `v23.0` to `v25.0` (supported until 2028-07-29) once Meta publishes an OpenAPI for it; the official spec is still v23.0.
-- Register the seven.io webhook automatically on "Test connection" (`POST /api/hooks` with `request_method=JSON`, like Telegram's `setWebhook`), instead of asking the owner to enter it.
+- ~~Register the seven.io webhook automatically on "Test connection" (`POST /api/hooks` with `request_method=JSON`, like Telegram's `setWebhook`), instead of asking the owner to enter it.~~ Done in [#17](https://github.com/Schero94/Magic-MessageGate/issues/17) (idempotent, own hooks only, "Remove webhook").
 - Parse the form-encoded seven.io webhook once seven.io documents its field names, or once a live run records them.

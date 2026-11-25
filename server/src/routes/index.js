@@ -38,6 +38,7 @@ module.exports = {
       admin('DELETE', '/accounts/:id', 'deleteAccount', 'accounts.manage'),
       admin('GET', '/accounts/embedded-signup', 'embeddedSignupConfig', 'accounts.read'),
       admin('POST', '/accounts/:id/test', 'testAccount', 'accounts.manage'),
+      admin('DELETE', '/accounts/:id/webhook', 'removeAccountWebhook', 'accounts.manage'),
       admin('POST', '/accounts/:id/verify-token', 'revealVerifyToken', 'accounts.manage'),
       admin('POST', '/accounts/:id/sync-templates', 'syncTemplates', 'templates.manage'),
 

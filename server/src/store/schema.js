@@ -334,6 +334,8 @@ const COLUMNS = [
   [T.contacts, 'rcs_capability_at', (t) => t.bigInteger('rcs_capability_at')],
   [T.contacts, 'line_active', (t) => t.string('line_active', 16)],
   [T.contacts, 'line_checked_at', (t) => t.bigInteger('line_checked_at')],
+  // 1.3: provider webhook registration of an account (seven.io hooks API), JSON.
+  [T.accounts, 'webhook_state', (t) => t.text('webhook_state')],
 ];
 
 /**

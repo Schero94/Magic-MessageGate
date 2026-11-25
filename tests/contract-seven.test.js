@@ -202,3 +202,131 @@ test('seven contract: the official webhook examples are verified and processed',
   assert.equal(inbound.length, 1, 'sms_mo stored');
   assert.equal(inbound[0].receivedAt, Number(hooks.examples.sms_mo.data.time) * 1000);
 });
+
+test('seven contract: webhook management uses the documented hooks operations (issue #17)', async () => {
+  const createSchema = requestSchema(spec, 'post', '/hooks', 'application/x-www-form-urlencoded');
+  const createProps = flatten(spec, createSchema).properties;
+  for (const event of seven.HOOK_EVENTS) assert.ok(createProps.event_type.enum.includes(event), `${event} documented`);
+  assert.ok(createProps.request_method.enum.includes('JSON'));
+  /** Strips nulls: the reference examples send `null` where the schema types strings. */
+  const noNulls = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null));
+
+  // POST /api/hooks: answer example from docs.seven.io/en/rest-api/endpoints/webhooks.
+  const created = { success: true, code: null, id: 12345, error_message: null };
+  ok(validate(spec, responseSchema(spec, 'post', '/hooks', '200'), noNulls(created)), 'create answer');
+  let io = capture();
+  io.answer(200, created);
+  const target = 'https://cms.example.test/api/magic-messagegate/webhooks/seven/abcdefghijklmnopqrstuvwx';
+  const res = await seven.createHook({ config, targetUrl: target, eventType: 'dlr', fetchImpl: io.fetchImpl });
+  assert.deepEqual(res, { ok: true, code: null, id: '12345' });
+  let [req] = io.requests;
+  assert.equal(req.method, 'POST');
+  assert.equal(`${req.url.origin}${req.url.pathname}`, 'https://gateway.seven.io/api/hooks');
+  assert.equal(req.headers['x-api-key'], config.apiKey);
+  for (const key of req.form.keys()) assert.ok(createProps[key], `${key} is a documented field`);
+  ok(validate(spec, createSchema, formToObject(spec, createSchema, req.form)), 'create form');
+  assert.equal(req.form.get('request_method'), 'JSON', 'MessageGate reads only JSON webhook bodies');
+
+  // DELETE /api/hooks with the id.
+  const deleteSchema = requestSchema(spec, 'delete', '/hooks', 'application/x-www-form-urlencoded');
+  ok(validate(spec, responseSchema(spec, 'delete', '/hooks', '200'), noNulls(created)), 'delete answer');
+  io = capture();
+  io.answer(200, created);
+  assert.deepEqual(await seven.deleteHook({ config, id: '12345', fetchImpl: io.fetchImpl }), { ok: true, code: null });
+  [req] = io.requests;
+  assert.equal(req.method, 'DELETE');
+  assert.equal(req.url.pathname, '/api/hooks');
+  for (const key of req.form.keys()) assert.ok(flatten(spec, deleteSchema).properties[key], `${key} documented`);
+  ok(validate(spec, deleteSchema, formToObject(spec, deleteSchema, req.form)), 'delete form');
+
+  // GET /api/hooks: the reference page's example (`hooks` list) ...
+  const page = {
+    success: true,
+    code: null,
+    hooks: [
+      {
+        id: '410',
+        target_url: 'https://acme.example.test/v1/webhooks',
+        headers: '',
+        event_type: 'sms_mo',
+        event_filter: '49157123456789',
+        request_method: 'GET',
+        enabled: true,
+        created: '2021-03-01 11:19:08',
+      },
+      {
+        id: '1277',
+        target_url: 'https://hooks.example.test/hook',
+        headers: 'Authorization: Basic dXNlcjpwYXNz',
+        event_type: 'all',
+        event_filter: null,
+        request_method: 'JSON',
+        enabled: false,
+        created: '2021-12-30 13:33:02',
+      },
+    ],
+  };
+  io = capture();
+  io.answer(200, page);
+  let list = await seven.listHooks({ config, fetchImpl: io.fetchImpl });
+  assert.equal(io.requests[0].method, 'GET');
+  assert.equal(io.requests[0].url.pathname, '/api/hooks');
+  assert.equal([...io.requests[0].url.searchParams.keys()].length, 0);
+  assert.deepEqual(list, {
+    ok: true,
+    code: null,
+    hooks: [
+      {
+        id: '410',
+        targetUrl: 'https://acme.example.test/v1/webhooks',
+        eventType: 'sms_mo',
+        requestMethod: 'GET',
+        enabled: true,
+      },
+      {
+        id: '1277',
+        targetUrl: 'https://hooks.example.test/hook',
+        eventType: 'all',
+        requestMethod: 'JSON',
+        enabled: false,
+      },
+    ],
+  });
+  // ... and the OpenAPI's shape (`data[].hooks`, see docs/contract-tests.md).
+  const openapiShape = { data: page.hooks.map((h) => ({ success: true, hooks: noNulls(h) })) };
+  ok(validate(spec, responseSchema(spec, 'get', '/hooks', '200'), openapiShape), 'OpenAPI list shape');
+  for (const h of page.hooks) {
+    for (const key of Object.keys(h)) {
+      assert.ok(
+        flatten(spec, flatten(spec, responseSchema(spec, 'get', '/hooks', '200')).properties.data.items).properties
+          .hooks.properties[key],
+        `${key} is a documented hook field`
+      );
+    }
+  }
+  io = capture();
+  io.answer(200, openapiShape);
+  list = await seven.listHooks({ config, fetchImpl: io.fetchImpl });
+  assert.deepEqual(
+    list.hooks.map((h) => h.id),
+    ['410', '1277']
+  );
+
+  // Failures: bare auth code, documented `success: false`, HTTP errors.
+  for (const [status, json, code] of [
+    [200, 900, 'SEVEN_900'],
+    [200, { success: false, code: 'invalid_url', id: null, error_message: 'x' }, 'SEVEN_invalid_url'],
+    [401, {}, 'HTTP_401'],
+  ]) {
+    io = capture();
+    io.answer(status, json);
+    io.answer(status, json);
+    io.answer(status, json);
+    assert.equal((await seven.listHooks({ config, fetchImpl: io.fetchImpl })).code, code);
+    assert.equal(
+      (await seven.createHook({ config, targetUrl: target, eventType: 'dlr', fetchImpl: io.fetchImpl })).code,
+      code
+    );
+    assert.equal((await seven.deleteHook({ config, id: '1', fetchImpl: io.fetchImpl })).code, code);
+  }
+});

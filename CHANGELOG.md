@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- seven.io: **Test connection** registers the account's webhook at seven.io through the official hooks API ([#17](https://github.com/Schero94/Magic-MessageGate/issues/17)): one hook for status reports (`dlr`) and one for inbound SMS (`sms_mo`), request method JSON, pointing at the account's webhook URL. Existing hooks are listed first, so testing again never creates duplicates; a JSON hook for the same URL that the owner made by hand is reused and left alone, and a form or GET hook for that URL is reported on the account card (MessageGate cannot read those). Registration needs a public https `server.url`; otherwise the card says why nothing was registered. The account card shows the result in all five admin languages, and **Remove webhook** (also run when the account is deleted) deletes only the hooks MessageGate created. Nothing secret reaches the browser or the log: the card gets a status, a reason code and counts, never hook ids, the API key or the signing key. seven.io has no per-hook secret; webhooks stay signed with the account's signing key. **Not live-verified yet:** the request and answer shapes follow seven.io's reference page and official OpenAPI (contract tests), and `tests/live/seven.live.test.js` has a new opt-in case for it, but it has not been run against the real seven.io API; no live credentials were available.
+
 # [1.2.0](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.1.3...messagegate-v1.2.0) (2026-11-20)
 
 

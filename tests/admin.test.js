@@ -220,6 +220,35 @@ test('utils: provider credentials, send form, settings, messages, contacts, form
   assert.equal(pr.webhookHint(echo, 'twilio'), 'accounts.webhookUrl.twilio');
   assert.equal(pr.webhookHint(echo, 'meta'), 'accounts.webhookUrl.hint');
 
+  // seven.io webhook registration card (issue #17).
+  const explain = (code) => (code === 'PUBLIC_URL_MISSING' ? 'no url' : null);
+  const reg = (extra) => ({ status: 'registered', code: null, managed: 2, conflict: false, ...extra });
+  assert.deepEqual(pr.webhookRegistrationView(echo, null, explain), {
+    tone: 'neutral',
+    label: 'accounts.webhook.notRegistered',
+    detail: 'accounts.webhook.notTested',
+    canRemove: false,
+    conflict: null,
+  });
+  let view = pr.webhookRegistrationView(echo, reg(), explain);
+  assert.deepEqual(
+    [view.tone, view.label, view.detail, view.canRemove],
+    ['success', 'accounts.webhook.registered', 'accounts.webhook.registered.detail', true]
+  );
+  view = pr.webhookRegistrationView(echo, reg({ managed: 0, conflict: true }), explain);
+  assert.equal(view.detail, 'accounts.webhook.registered.foreign', 'hooks made elsewhere are named as such');
+  assert.equal(view.canRemove, false, 'only hooks MessageGate created can be removed');
+  assert.equal(view.conflict, 'accounts.webhook.conflict');
+  view = pr.webhookRegistrationView(echo, reg({ status: 'skipped', code: 'PUBLIC_URL_MISSING', managed: 0 }), explain);
+  assert.deepEqual([view.tone, view.detail], ['warning', 'no url']);
+  const fmt = (id, fallback, values) => (values ? `${id}:${values.reason}` : id);
+  view = pr.webhookRegistrationView(fmt, reg({ status: 'failed', code: 'SEVEN_900' }), explain);
+  assert.deepEqual(
+    [view.tone, view.detail, view.canRemove],
+    ['danger', 'accounts.webhook.failed.detail:SEVEN_900', true]
+  );
+  assert.equal(pr.webhookRegistrationView(echo, reg({ status: 'removed', managed: 0 }), explain).tone, 'neutral');
+
   const { validateSend } = await load('utils/send.mjs');
   assert.deepEqual(validateSend({ to: '', isText: true, text: '' }), { to: 'required', text: 'required' });
   assert.deepEqual(validateSend({ to: 'abc', isText: false, template: '' }), { to: 'phone', template: 'content' });
@@ -329,6 +358,10 @@ test('reasons: every provider error code MessageGate classifies has a plain-lang
     ...[201, 202, 305, 401, 402, 403, 407001, 407002, 407003, 407004, 407005, 500, 501, 600, 901, 902, 903]
       .map((c) => `SEVEN_${c}`)
       .concat(['SEVEN_AUTH', 'SEVEN_900', 'SEVEN_NOTDELIVERED', 'SEVEN_EXPIRED', 'SEVEN_REJECTED', 'SEVEN_FAILED']),
+    'PUBLIC_URL_MISSING',
+    'PUBLIC_URL_NOT_PUBLIC',
+    'WEBHOOK_BUSY',
+    'SEVEN_HOOKS',
     'TG_400',
     'TG_401',
     'TG_403',

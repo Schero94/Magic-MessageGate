@@ -39,6 +39,20 @@ export function reasonText(t, code) {
       return t('reason.TG_403', 'The contact blocked the bot or never started it.');
     case 'TG_429':
       return t('reason.TG_429', 'Telegram rate limit reached. MessageGate retries later.');
+    case 'PUBLIC_URL_MISSING':
+      return t(
+        'reason.PUBLIC_URL_MISSING',
+        'No public URL is configured (server.url), so seven.io has nowhere to send webhooks.'
+      );
+    case 'PUBLIC_URL_NOT_PUBLIC':
+      return t(
+        'reason.PUBLIC_URL_NOT_PUBLIC',
+        'The public URL (server.url) is not a public https address, so seven.io cannot reach it.'
+      );
+    case 'WEBHOOK_BUSY':
+      return t('reason.WEBHOOK_BUSY', 'Another webhook change for this account is running. Try again in a minute.');
+    case 'SEVEN_HOOKS':
+      return t('reason.SEVEN_HOOKS', 'seven.io did not accept the webhook request.');
     case 'SEVEN_AUTH':
     case 'SEVEN_900':
       return t('reason.SEVEN_AUTH', 'seven.io rejected the API key.');

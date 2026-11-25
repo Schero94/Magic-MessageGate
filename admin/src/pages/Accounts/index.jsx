@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Box, Button, Flex, Grid, Status, Typography } from '@strapi/design-system';
-import { ArrowClockwise, Lightning, Pencil, Phone, Plus, Trash } from '@strapi/icons';
+import { ArrowClockwise, Cross, Lightning, Pencil, Phone, Plus, Trash } from '@strapi/icons';
 import { useNotification } from '@strapi/strapi/admin';
 
 import { ConfirmAction } from '../../components/ui/ConfirmAction';
@@ -16,11 +16,97 @@ import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { ToneBadge } from '../../components/ui/StatusBadge';
 import { useT } from '../../hooks/useT';
 import { channelLabels, providerLabels } from '../../utils/channels';
-import { webhookHint } from '../../utils/providers.mjs';
+import { webhookHint, webhookRegistrationView } from '../../utils/providers.mjs';
 import { reasonText } from '../../utils/reasons';
 import { AccountWizard } from './AccountWizard';
 
 const CHANNEL_ORDER = ['whatsapp', 'rcs', 'telegram', 'sms'];
+
+/**
+ * seven.io webhook registration of an account: state, what it means and
+ * the "Remove webhook" action for hooks MessageGate created (issue #17).
+ *
+ * @param {object} props - Props.
+ * @param {object} props.account - Account DTO (`webhookRegistration`).
+ * @param {boolean} props.canManage - accounts.manage permission.
+ * @param {() => Promise<void>} props.onChanged - Reload.
+ * @returns {JSX.Element} Webhook block.
+ */
+const SevenWebhook = ({ account, canManage, onChanged }) => {
+  const t = useT();
+  const api = useApi();
+  const act = useAction();
+  const { toggleNotification } = useNotification();
+  const view = webhookRegistrationView(t, account.webhookRegistration, (code) => reasonText(t, code));
+  const titleId = `account-${account.id}-webhook`;
+
+  const remove = async () => {
+    const result = await act(() => api.del(`/accounts/${account.id}/webhook`));
+    if (result?.failed) {
+      toggleNotification({
+        type: 'warning',
+        message: t('accounts.webhook.remove.partial', 'seven.io did not delete every webhook: {reason}', {
+          reason: reasonText(t, result.code) || result.code || '-',
+        }),
+      });
+    } else {
+      toggleNotification({
+        type: 'success',
+        message: t(
+          'accounts.webhook.remove.done',
+          '{count, plural, one {# webhook} other {# webhooks}} removed at seven.io.',
+          {
+            count: result?.removed ?? 0,
+          }
+        ),
+      });
+    }
+    await onChanged();
+  };
+
+  return (
+    <Box tag="section" aria-labelledby={titleId} background="neutral100" hasRadius borderColor="neutral200" padding={4}>
+      <Flex direction="column" alignItems="stretch" gap={2}>
+        <Flex justifyContent="space-between" alignItems="center" gap={2} wrap="wrap">
+          <Typography id={titleId} variant="omega" fontWeight="semiBold" tag="h3">
+            {t('accounts.webhook.title', 'Webhook at seven.io')}
+          </Typography>
+          <ToneBadge tone={view.tone}>{view.label}</ToneBadge>
+        </Flex>
+        <Typography variant="pi" textColor="neutral600">
+          {view.detail}
+        </Typography>
+        {view.conflict ? (
+          <Typography variant="pi" textColor="warning700">
+            {view.conflict}
+          </Typography>
+        ) : null}
+        {account.webhookRegistration?.at ? (
+          <Typography variant="pi" textColor="neutral600">
+            {t('accounts.health.checked', 'Checked')} <RelativeTime value={account.webhookRegistration.at} />
+          </Typography>
+        ) : null}
+        {canManage && view.canRemove ? (
+          <Box>
+            <ConfirmAction
+              label={t('accounts.webhook.remove', 'Remove webhook')}
+              startIcon={<Cross />}
+              triggerVariant="danger-light"
+              size="S"
+              title={t('accounts.webhook.remove.title', 'Remove the webhook at seven.io?')}
+              body={t(
+                'accounts.webhook.remove.body',
+                'MessageGate deletes the webhooks it registered for this account at seven.io. Webhooks created elsewhere stay. Status reports and inbound SMS stop arriving until "Test connection" registers them again.'
+              )}
+              confirmLabel={t('accounts.webhook.remove.confirm', 'Remove webhook')}
+              onConfirm={remove}
+            />
+          </Box>
+        ) : null}
+      </Flex>
+    </Box>
+  );
+};
 const HEALTH_VARIANT = { ok: 'success', error: 'danger', unknown: 'neutral' };
 
 /**
@@ -53,15 +139,31 @@ const AccountCard = ({ account, rbac, onEdit, onChanged }) => {
     setTesting(true);
     try {
       const result = await act(() => api.post(`/accounts/${account.id}/test`));
+      const webhookFailed = account.provider === 'seven' && result?.ok && result?.info?.webhook !== 'registered';
       toggleNotification(
-        result?.ok
-          ? { type: 'success', message: t('accounts.test.ok', 'The connection works.') }
-          : {
-              type: 'danger',
-              message: t('accounts.test.failed', 'The provider refused the connection: {reason}', {
-                reason: reasonText(t, result?.code) || result?.code || '-',
-              }),
+        webhookFailed
+          ? {
+              type: 'warning',
+              message: t(
+                'accounts.test.webhookFailed',
+                'The connection works, but the webhook is not registered at seven.io: {reason}',
+                { reason: reasonText(t, result.info.webhookCode) || result.info.webhookCode || '-' }
+              ),
             }
+          : result?.ok
+            ? {
+                type: 'success',
+                message:
+                  account.provider === 'seven'
+                    ? t('accounts.test.ok.seven', 'The connection works. The webhook is registered at seven.io.')
+                    : t('accounts.test.ok', 'The connection works.'),
+              }
+            : {
+                type: 'danger',
+                message: t('accounts.test.failed', 'The provider refused the connection: {reason}', {
+                  reason: reasonText(t, result?.code) || result?.code || '-',
+                }),
+              }
       );
     } catch {
       // notified by useAction
@@ -162,6 +264,10 @@ const AccountCard = ({ account, rbac, onEdit, onChanged }) => {
           </Typography>
         )}
 
+        {account.provider === 'seven' ? (
+          <SevenWebhook account={account} canManage={rbac.accounts.manage} onChanged={onChanged} />
+        ) : null}
+
         {rbac.accounts.manage || (rbac.templates.manage && account.provider === 'meta') ? (
           <Flex gap={2} wrap="wrap" marginTop="auto" paddingTop={2}>
             {rbac.accounts.manage ? (
@@ -183,10 +289,17 @@ const AccountCard = ({ account, rbac, onEdit, onChanged }) => {
                   label={t('common.delete', 'Delete')}
                   startIcon={<Trash />}
                   title={t('accounts.delete.title', 'Delete "{name}"?', { name: account.name })}
-                  body={t(
-                    'accounts.delete.body',
-                    'Messages can no longer be sent with this account and its credentials are erased. Queued messages use another account of the channel or fail. This cannot be undone.'
-                  )}
+                  body={
+                    account.webhookRegistration?.managed
+                      ? t(
+                          'accounts.delete.body.seven',
+                          'Messages can no longer be sent with this account and its credentials are erased. MessageGate also deletes the webhooks it registered at seven.io. Queued messages use another account of the channel or fail. This cannot be undone.'
+                        )
+                      : t(
+                          'accounts.delete.body',
+                          'Messages can no longer be sent with this account and its credentials are erased. Queued messages use another account of the channel or fail. This cannot be undone.'
+                        )
+                  }
                   confirmLabel={t('accounts.delete.confirm', 'Delete account')}
                   size="S"
                   onConfirm={remove}

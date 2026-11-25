@@ -21,6 +21,20 @@ const { syntheticFile } = require('../utils/filetype');
 const CHANNEL = { meta: 'whatsapp', telegram: 'telegram', seven: 'sms', twilio: 'sms' };
 const UNDELIVERED = { whatsapp: 'META_131049', rcs: 'TWILIO_30006', sms: 'SEVEN_NOTDELIVERED' };
 
+/** seven.io webhooks registered in sandbox mode, per API key (this process only). */
+const sandboxHooks = new Map();
+let sandboxHookId = 1000;
+
+/**
+ * @param {object} config - Account config.
+ * @returns {Array<object>} The hook list of that account.
+ */
+const hooksOf = (config) => {
+  const key = String(config?.apiKey || '');
+  if (!sandboxHooks.has(key)) sandboxHooks.set(key, []);
+  return sandboxHooks.get(key);
+};
+
 /**
  * @param {string} provider
  * @param {string} channel
@@ -97,6 +111,21 @@ function forProvider(provider) {
       return { ok: true, code: null, info: { ...info, sandbox: true } };
     },
     async setWebhook() {
+      return { ok: true, code: null };
+    },
+    async listHooks({ config }) {
+      return { ok: true, code: null, hooks: hooksOf(config).map((h) => ({ ...h })) };
+    },
+    async createHook({ config, targetUrl, eventType }) {
+      const id = String((sandboxHookId += 1));
+      hooksOf(config).push({ id, targetUrl, eventType, requestMethod: 'JSON', enabled: true });
+      return { ok: true, code: null, id };
+    },
+    async deleteHook({ config, id }) {
+      const list = hooksOf(config);
+      const at = list.findIndex((h) => h.id === String(id));
+      if (at < 0) return { ok: false, code: 'SEVEN_HOOKS' };
+      list.splice(at, 1);
       return { ok: true, code: null };
     },
     async listTemplates() {
