@@ -22,6 +22,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import * as prettier from 'prettier';
 import YAML from 'yaml';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -106,6 +107,8 @@ const TELEGRAM_METHODS = [
   'setWebhook',
 ];
 const TELEGRAM_TYPES = [
+  // getMe returns BotFullInfo since Bot API 10.5 (before: User with getMe-only fields).
+  'BotFullInfo',
   'Update',
   'Message',
   'User',
@@ -472,7 +475,8 @@ let changed = 0;
 mkdirSync(outDir, { recursive: true });
 for (const [name, value] of Object.entries(files)) {
   const target = path.join(outDir, name);
-  const next = stable(value);
+  // Formatted like the committed files (repo Prettier config), so --check compares content only.
+  const next = await prettier.format(stable(value), { ...(await prettier.resolveConfig(target)), filepath: target });
   let current;
   try {
     current = readFileSync(target, 'utf8');
