@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.1](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.3.0...messagegate-v1.3.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **admin:** clearer click paths, consistent wording and spacing ([#25](https://github.com/Schero94/Magic-MessageGate/issues/25)) ([a12b449](https://github.com/Schero94/Magic-MessageGate/commit/a12b449dadcf5a04ec3600371a7c8dea714b7c96))
+
 
 ### Fixed
 
