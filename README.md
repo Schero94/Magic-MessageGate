@@ -272,7 +272,7 @@ strapi.eventHub.on('messagegate.message.failed', ({ messageId, channel, code }) 
 });
 ```
 
-Events: `messagegate.message.queued`, `.sent`, `.delivered`, `.read`, `.failed`, `.uncertain`, `.expired`, `.discarded`, `.fallback`, `.received`, plus `messagegate.media.ready`, `messagegate.media.failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable` and `messagegate.template.status-changed`. Every event is emitted by exactly one process. The same events can go to your own https endpoint, signed with HMAC-SHA256 (Settings → Outgoing webhook; verification code in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#outgoing-webhook)).
+Events: `messagegate.message.queued`, `.held`, `.sent`, `.delivered`, `.read`, `.failed`, `.uncertain`, `.expired`, `.discarded`, `.fallback`, `.received`, plus `messagegate.media.ready`, `messagegate.media.failed`, `messagegate.contact.opted-out`, `messagegate.contact.unreachable` and `messagegate.template.status-changed`. Every event is emitted by exactly one process. The same events can go to your own https endpoint, signed with HMAC-SHA256 (Settings → Outgoing webhook; verification code in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#outgoing-webhook)).
 
 ## Receiving messages
 
@@ -383,7 +383,7 @@ const { sandboxConfig } = require('strapi-plugin-magic-messagegate/testing');
 module.exports = { 'magic-messagegate': { enabled: true, config: sandboxConfig() } };
 ```
 
-In sandbox mode no message leaves the server. Test numbers decide the outcome: `+4915550000002` is read, `+4915550000003` is not on WhatsApp (falls back), `+4915550000004` can't receive RCS, `+4915550000005` stays undelivered, `+4915550000007` ends uncertain, `+4915550000008` is an unassigned number; every other number is delivered. `sandbox.simulateInbound({ to, text, buttonPayload, media: { mime, size } })` (or `POST /api/magic-messagegate/sandbox/inbound`) feeds replies and files into your automations, and `drain(strapi)` runs the workers right away. The full table is in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#sandbox-tests-and-ci).
+In sandbox mode no message leaves the server. Test numbers decide the outcome: `+4915550000002` is read, `+4915550000003` is not on WhatsApp (falls back), `+4915550000004` can't receive RCS, `+4915550000005` stays undelivered, `+4915550000007` ends uncertain, `+4915550000008` is an unassigned number, `+4915550000009` is held by Meta (template pacing); every other number is delivered. `sandbox.simulateInbound({ to, text, buttonPayload, media: { mime, size } })` (or `POST /api/magic-messagegate/sandbox/inbound`) feeds replies and files into your automations, and `drain(strapi)` runs the workers right away. The full table is in [AGENTS.md](https://github.com/Schero94/Magic-MessageGate/blob/main/AGENTS.md#sandbox-tests-and-ci).
 
 ## Permissions
 
@@ -455,6 +455,9 @@ No. E-mail is an opt-in last step of the chain that hands the message to Magic M
 
 **Why is a message "uncertain"?**
 The request reached the provider, but no clear answer came back in time. The provider may or may not have the message, so sending again could deliver it twice. An admin can retry it (after confirming the risk) or mark it as sent.
+
+**Why is a WhatsApp message "held by Meta"?**
+Meta paces new or low-rated marketing and utility templates: it accepts the message but holds it until it has feedback on the template ([template pacing](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-pacing)). The message is neither sent nor failed yet, so MessageGate shows it as _held_ and waits for Meta's status webhook: usually within an hour Meta either sends it (it becomes sent, then delivered) or drops it with error 132015 because the template was paused (it becomes failed, and the fallback chain runs). Don't send it again while it is held.
 
 **Can I send free text on WhatsApp?**
 Only within 24 hours after the contact last wrote to you. Outside that window, Meta requires an approved template.

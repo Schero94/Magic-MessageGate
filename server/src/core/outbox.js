@@ -6,6 +6,7 @@
  * Life of a message (status / phase):
  *   queued/queued ──claim──> queued/claimed ──dispatch──> queued/dispatching
  *     ├─ accepted  → sent/done ─webhook→ delivered → read      (failed possible after sent)
+ *     ├─ held      → held/done (Meta template pacing) ─webhook→ sent/delivered/read, or failed (132015)
  *     ├─ transient → queued/queued with next_attempt_at (backoff) or failed when attempts/deadline are used up
  *     ├─ rejected  → failed/done (fallback to the next channel when eligible)
  *     └─ ambiguous → uncertain/done (never re-sent automatically; an admin decides)
@@ -29,7 +30,7 @@ const { newId, parseJson } = require('./context');
 
 const PAYLOAD = 'message-payload';
 const TERMINAL = new Set(['delivered', 'read', 'failed', 'expired', 'discarded']);
-const RANK = { queued: 0, uncertain: 1, sent: 2, delivered: 3, read: 4 };
+const RANK = { queued: 0, uncertain: 1, held: 2, sent: 3, delivered: 4, read: 5 };
 
 /**
  * @param {import('./context').CoreContext} ctx
@@ -326,6 +327,33 @@ function createOutbox(ctx, deps) {
     }
 
     const done = ctx.now();
+    if (result.outcome === 'accepted' && result.held) {
+      // Meta accepted the request but holds the message (template pacing,
+      // issue #18): not sent yet, not failed. The status webhook decides.
+      const ok = await fenced(row, {
+        status: 'held',
+        phase: 'done',
+        account_id: usedAccount.id,
+        provider_message_id: result.providerMessageId ? String(result.providerMessageId).slice(0, 128) : null,
+        error_code: String(result.code || 'HELD').slice(0, 64),
+        lease_token: null,
+        lease_until: null,
+      });
+      if (ok) {
+        await event(row.id, 'held', result.code, done);
+        emit(row, 'held', result.code);
+        ctx.log.info(`[magic-messagegate] message ${row.document_id} held by the provider (${result.code})`);
+        for (const update of Array.isArray(result.simulated) ? result.simulated : []) {
+          await api.applyProviderStatus({
+            providerMessageId: result.providerMessageId,
+            status: update.status,
+            code: update.code || null,
+            at: ctx.now(),
+          });
+        }
+      }
+      return 'held';
+    }
     if (result.outcome === 'accepted') {
       const ok = await fenced(row, {
         status: 'sent',
@@ -562,7 +590,9 @@ function createOutbox(ctx, deps) {
 
     /**
      * Applies a provider status (webhook). Statuses only move forward;
-     * `failed` after `sent` is accepted, `failed` after delivery is ignored.
+     * `failed` after `sent` (or `held`) is accepted, `failed` after delivery
+     * is ignored. Leaving `held` records a `released` event and clears the
+     * hold code.
      *
      * @param {{providerMessageId: string, status: 'sent'|'delivered'|'read'|'failed', at?: number, code?: string|null}} update
      * @returns {Promise<object|null>} The updated row or null.
@@ -577,7 +607,7 @@ function createOutbox(ctx, deps) {
       const at = Number(update.at) || ctx.now();
       const current = row.status;
       if (update.status === 'failed') {
-        if (!['sent', 'uncertain', 'queued'].includes(current)) return row;
+        if (!['sent', 'held', 'uncertain', 'queued'].includes(current)) return row;
         const ok = affected(
           await ctx
             .knex(T.messages)
@@ -602,6 +632,7 @@ function createOutbox(ctx, deps) {
       if (!(target in RANK) || current === 'failed' || current === 'discarded' || current === 'expired') return row;
       if (RANK[target] <= (RANK[current] ?? 0)) return row;
       const values = { status: target, updated_at: ctx.now() };
+      if (current === 'held') values.error_code = null;
       if (target === 'sent' && !row.sent_at) values.sent_at = at;
       if (target === 'delivered' || target === 'read') {
         values.delivered_at = row.delivered_at || at;
@@ -611,6 +642,7 @@ function createOutbox(ctx, deps) {
       if (target === 'read') values.read_at = at;
       const ok = affected(await ctx.knex(T.messages).where({ id: row.id, status: current }).update(values));
       if (!ok) return row;
+      if (current === 'held') await event(row.id, 'released', row.error_code, at);
       await event(row.id, target, null, at);
       emit(row, target);
       if (row.contact_id && (target === 'delivered' || target === 'read')) {
@@ -793,7 +825,7 @@ function createOutbox(ctx, deps) {
           .knex(T.messages)
           .select('id')
           .where('created_at', '<', cutoff)
-          .whereIn('status', [...TERMINAL, 'uncertain', 'sent'])
+          .whereIn('status', [...TERMINAL, 'uncertain', 'held', 'sent'])
           .limit(5000)
       ).map((r) => r.id);
       let messages = 0;

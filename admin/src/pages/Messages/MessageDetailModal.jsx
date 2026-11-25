@@ -19,6 +19,7 @@ import { reasonText } from '../../utils/reasons';
 
 const EVENT_VARIANT = {
   ...STATUS_VARIANT,
+  released: 'primary',
   'retry-scheduled': 'warning',
   'retry-requested': 'secondary',
   'marked-sent': 'primary',
@@ -189,7 +190,33 @@ export const MessageDetailModal = ({ id, onClose, onChanged }) => {
                 </Typography>
               </Flex>
 
-              {m.errorCode ? (
+              {m.status === 'held' ? (
+                <Notice
+                  variant="warning"
+                  title={t('message.held.title', 'Meta is holding this message')}
+                  action={
+                    <Flex direction="column" alignItems="flex-start" gap={2}>
+                      <Typography textColor="neutral800">
+                        {t(
+                          'message.held.next',
+                          'Nothing to do yet: the status updates by itself when Meta sends or drops the message. Do not send it again while it is held, or the contact may get it twice. If it fails with 132015, Meta paused the template for low quality: edit the template in WhatsApp Manager or wait until Meta unpauses it, then send again.'
+                        )}
+                      </Typography>
+                      {m.errorCode ? (
+                        <Typography variant="pi" textColor="neutral600">
+                          {m.errorCode}
+                        </Typography>
+                      ) : null}
+                    </Flex>
+                  }
+                >
+                  {reason ||
+                    t(
+                      'reason.META_HELD_FOR_QUALITY_ASSESSMENT',
+                      'Meta is holding this template message for a quality check (template pacing). Meta sends it or drops it, usually within an hour.'
+                    )}
+                </Notice>
+              ) : m.errorCode ? (
                 <Notice variant={m.status === 'failed' ? 'danger' : 'warning'} title={m.errorCode}>
                   {reason || t('message.reasonUnknown', 'The provider gave no further explanation.')}
                 </Notice>

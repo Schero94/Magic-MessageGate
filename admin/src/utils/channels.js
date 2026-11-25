@@ -12,11 +12,22 @@ export const PROVIDERS_BY_CHANNEL = {
   sms: ['seven', 'twilio'],
 };
 
-export const MESSAGE_STATUSES = ['queued', 'sent', 'delivered', 'read', 'failed', 'uncertain', 'expired', 'discarded'];
+export const MESSAGE_STATUSES = [
+  'queued',
+  'held',
+  'sent',
+  'delivered',
+  'read',
+  'failed',
+  'uncertain',
+  'expired',
+  'discarded',
+];
 
 /** DS Badge/Status variant per message status. */
 export const STATUS_VARIANT = {
   queued: 'secondary',
+  held: 'warning',
   sent: 'primary',
   delivered: 'success',
   read: 'success',
@@ -70,6 +81,7 @@ export const providerLabels = (t) => ({
  */
 export const statusLabels = (t) => ({
   queued: t('status.queued', 'Queued'),
+  held: t('status.held', 'Held by Meta'),
   sent: t('status.sent', 'Sent'),
   delivered: t('status.delivered', 'Delivered'),
   read: t('status.read', 'Read'),
@@ -103,6 +115,8 @@ export const approvalLabels = (t) => ({
  */
 export const eventLabels = (t) => ({
   queued: t('event.queued', 'Queued'),
+  held: t('event.held', 'Held by Meta for a quality check'),
+  released: t('event.released', 'Released by Meta'),
   sent: t('event.sent', 'Accepted by the provider'),
   delivered: t('event.delivered', 'Delivered to the phone'),
   read: t('event.read', 'Read by the recipient'),

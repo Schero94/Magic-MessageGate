@@ -23,6 +23,8 @@ const SANDBOX_NUMBERS = Object.freeze({
   uncertain: '+4915550000007',
   /** HLR says the number is not assigned (`active: false`). Sends behave like `undelivered`. */
   inactive: '+4915550000008',
+  /** WhatsApp: Meta holds the template message for a quality check (status `held`, no webhook follows); other channels deliver. */
+  held: '+4915550000009',
 });
 
 /**

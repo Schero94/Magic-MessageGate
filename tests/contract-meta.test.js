@@ -169,6 +169,50 @@ test('meta contract: the documented send responses validate and give the wamid',
   }
 });
 
+test('meta contract: every documented message_status of the send answer is mapped (issue #18)', async () => {
+  const schema = responseSchema(spec, 'post', MESSAGES, '200');
+  const statusSchema = flatten(spec, { $ref: '#/components/schemas/MessageStatus' });
+  // Fails when a newer pinned spec adds a value nobody decided about yet.
+  assert.deepEqual([...statusSchema.enum].sort(), ['accepted', 'held_for_quality_assessment', 'paused']);
+  assert.deepEqual(Object.keys(meta.HELD_STATUS).sort(), ['held_for_quality_assessment', 'paused']);
+  const expected = {
+    accepted: { outcome: 'accepted', held: undefined, code: null },
+    held_for_quality_assessment: { outcome: 'accepted', held: true, code: 'META_HELD_FOR_QUALITY_ASSESSMENT' },
+    paused: { outcome: 'accepted', held: true, code: 'META_PAUSED' },
+  };
+  for (const status of statusSchema.enum) {
+    // The synthetic answer of issue #18, valid against MessageResponsePayload.
+    const answer = {
+      messaging_product: 'whatsapp',
+      contacts: [{ input: '4915123456789', wa_id: '4915123456789' }],
+      messages: [{ id: 'wamid.SYNTHETIC1', message_status: status }],
+    };
+    ok(validate(spec, schema, answer), `answer with message_status ${status}`);
+    const io = capture();
+    io.answer(200, answer);
+    const res = await meta.send({
+      config,
+      to: TO,
+      payload: { kind: 'template', name: 'order_shipped', language: 'de', components: [] },
+      fetchImpl: io.fetchImpl,
+    });
+    assert.deepEqual(
+      { outcome: res.outcome, held: res.held, code: res.code },
+      expected[status],
+      `message_status ${status}`
+    );
+    assert.equal(res.providerMessageId, 'wamid.SYNTHETIC1', 'the wamid is kept for the status webhook');
+  }
+  // The spec's own examples carry no message_status (not paced): a normal send.
+  const io = capture();
+  io.answer(200, responseExamples(spec, 'post', MESSAGES, '200')['Example response']);
+  const res = await meta.send({ config, to: TO, payload: { kind: 'text', text: 'Hi' }, fetchImpl: io.fetchImpl });
+  assert.equal(res.held, undefined);
+  // The final state comes from the documented status webhook enum.
+  const webhookStatuses = flatten(spec, { $ref: '#/components/schemas/Statuses' }).properties.status.enum;
+  for (const status of webhookStatuses) assert.ok(META_STATUS[status], `${status} is mapped`);
+});
+
 test('meta contract: testConnection asks for documented fields and reads the documented answer', async () => {
   const io = capture();
   const example = {

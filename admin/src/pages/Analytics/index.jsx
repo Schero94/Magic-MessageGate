@@ -193,7 +193,9 @@ export const AnalyticsPage = () => {
                 value={formatNumber(data.fallbacks?.total ?? 0)}
                 note={t('analytics.kpi.failed', '{failed} failed, {queued} waiting', {
                   failed: formatNumber(totals.failed),
-                  queued: formatNumber((data.queue?.queued ?? 0) + (data.queue?.uncertain ?? 0)),
+                  queued: formatNumber(
+                    (data.queue?.queued ?? 0) + (data.queue?.uncertain ?? 0) + (data.queue?.held ?? 0)
+                  ),
                 })}
               />
             </Grid.Item>

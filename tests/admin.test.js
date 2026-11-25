@@ -249,6 +249,23 @@ test('utils: provider credentials, send form, settings, messages, contacts, form
   );
   assert.equal(pr.webhookRegistrationView(echo, reg({ status: 'removed', managed: 0 }), explain).tone, 'neutral');
 
+  // Held by Meta (issue #18): no admin action while Meta decides.
+  const heldActions = (await load('utils/messages.mjs')).messageActions;
+  assert.deepEqual(heldActions({ status: 'held', hasPayload: true }), {
+    retry: false,
+    retryBlockedBy: null,
+    retryNeedsConfirm: false,
+    discard: false,
+    markSent: false,
+  });
+  // channels.js is an ES module without imports in a CommonJS package.
+  const ch = await import(
+    `data:text/javascript,${encodeURIComponent(fs.readFileSync(path.join(ADMIN, 'utils/channels.js'), 'utf8'))}`
+  );
+  assert.ok(ch.MESSAGE_STATUSES.includes('held'));
+  assert.equal(ch.statusLabels(echo).held, 'status.held');
+  assert.equal(ch.eventLabels(echo).released, 'event.released');
+
   const { validateSend } = await load('utils/send.mjs');
   assert.deepEqual(validateSend({ to: '', isText: true, text: '' }), { to: 'required', text: 'required' });
   assert.deepEqual(validateSend({ to: 'abc', isText: false, template: '' }), { to: 'phone', template: 'content' });
@@ -358,6 +375,8 @@ test('reasons: every provider error code MessageGate classifies has a plain-lang
     ...[201, 202, 305, 401, 402, 403, 407001, 407002, 407003, 407004, 407005, 500, 501, 600, 901, 902, 903]
       .map((c) => `SEVEN_${c}`)
       .concat(['SEVEN_AUTH', 'SEVEN_900', 'SEVEN_NOTDELIVERED', 'SEVEN_EXPIRED', 'SEVEN_REJECTED', 'SEVEN_FAILED']),
+    'META_HELD_FOR_QUALITY_ASSESSMENT',
+    'META_PAUSED',
     'PUBLIC_URL_MISSING',
     'PUBLIC_URL_NOT_PUBLIC',
     'WEBHOOK_BUSY',

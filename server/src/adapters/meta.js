@@ -32,6 +32,23 @@
  * versions table (https://developers.facebook.com/docs/graph-api/changelog/versions):
  * v23.0 is available until 2027-10-08. The webhook status enum is sent,
  * delivered, read, failed; `played` is kept as an alias of read.
+ *
+ * Template pacing (issue #18, read 2026-11-24):
+ * - Official OpenAPI v23.0 `MessageResponsePayload.messages[].message_status`
+ *   (`MessageStatus`): `accepted` ("accepted by WhatsApp and is being
+ *   processed"), `held_for_quality_assessment` ("being held for quality
+ *   assessment before delivery"), `paused` ("delivery has been paused").
+ * - https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-pacing
+ *   Held messages are released when the template's quality turns out good
+ *   (then `sent`/`delivered` status webhooks follow), or dropped when it is
+ *   paused: each one then gets a `failed` status webhook with code 132015.
+ *   If Meta cannot decide in time, held messages are released normally
+ *   ("within an hour", 99th percentile).
+ * - https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages
+ *   `message_status` is only present for template messages that are paced.
+ * So a 200 with `held_for_quality_assessment` or `paused` is neither "sent"
+ * nor "failed": the adapter reports `held` with a META_* code and the status
+ * webhook decides the final state.
  */
 const { request } = require('./http');
 const { fetchLimited, onHost } = require('../utils/download');
@@ -50,6 +67,16 @@ const DEFAULT_VERSION = 'v23.0';
 const TRANSIENT_CODES = new Set([4, 80007, 130429, 131048, 131056, 133016]);
 /** Error codes that point at the account configuration (token, number). */
 const ACCOUNT_CODES = new Set([0, 3, 10, 190, 200, 131005, 131030, 131031, 131042, 133010]);
+
+/**
+ * `message_status` values of the send answer that mean "Meta holds the
+ * message" (template pacing), with MessageGate's reason code. `accepted`
+ * and a missing value are a normal send.
+ */
+const HELD_STATUS = Object.freeze({
+  held_for_quality_assessment: 'META_HELD_FOR_QUALITY_ASSESSMENT',
+  paused: 'META_PAUSED',
+});
 
 /** Template status values documented by Meta. */
 const TEMPLATE_STATUSES = Object.freeze([
@@ -165,12 +192,15 @@ module.exports = {
   channel: 'whatsapp',
   provider: 'meta',
   TEMPLATE_STATUSES,
+  HELD_STATUS,
 
   /**
    * Sends one message.
    *
    * @param {{config: object, to: string, payload: object, settings?: object, fetchImpl?: Function}} input
-   * @returns {Promise<{outcome: string, providerMessageId: string|null, code: string|null, retryAfterMs: number|null, accountProblem: boolean}>}
+   * @returns {Promise<{outcome: string, providerMessageId: string|null, code: string|null, retryAfterMs: number|null, accountProblem: boolean, held?: boolean}>}
+   *   `held: true` (with `code` META_HELD_FOR_QUALITY_ASSESSMENT or META_PAUSED)
+   *   when Meta accepted the request but holds the message (template pacing).
    */
   async send({ config, to, payload, settings, fetchImpl }) {
     const { base, version, headers } = endpoint(config, settings);
@@ -182,7 +212,11 @@ module.exports = {
       fetchImpl,
     });
     const mapped = classify(res);
-    return { ...mapped, providerMessageId: res.json?.messages?.[0]?.id || null };
+    const first = res.json?.messages?.[0];
+    const providerMessageId = typeof first?.id === 'string' ? first.id : null;
+    const heldCode = mapped.outcome === 'accepted' ? HELD_STATUS[first?.message_status] : undefined;
+    if (heldCode) return { ...mapped, code: heldCode, held: true, providerMessageId };
+    return { ...mapped, providerMessageId };
   },
 
   /**

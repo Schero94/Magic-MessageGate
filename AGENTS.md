@@ -207,16 +207,17 @@ Errors use Strapi's error shape:
 
 `timeline` is a list of `{ type, code, at }` (epoch ms), `fallbacks` a list of `{ id, channel, status }` for messages created by the fallback chain.
 
-| Status      | Meaning                                                                                          | Terminal |
-| ----------- | ------------------------------------------------------------------------------------------------ | -------- |
-| `queued`    | waiting for the worker (also between retries)                                                    | no       |
-| `sent`      | the provider accepted it                                                                         | no       |
-| `delivered` | the provider reported delivery to the phone                                                      | no       |
-| `read`      | the recipient opened it (WhatsApp and RCS, only with read receipts on)                           | yes      |
-| `failed`    | not delivered (`errorCode`, e.g. `META_131026`, `TWILIO_63036`); the fallback chain may continue | yes      |
-| `uncertain` | the outcome is unknown (timeout after the request was written); never resent automatically       | yes      |
-| `expired`   | `notAfter` passed before it could be sent                                                        | yes      |
-| `discarded` | cancelled by an admin or `cancel(id)`                                                            | yes      |
+| Status      | Meaning                                                                                                                                                                                                                                                                                                                                                                              | Terminal |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `queued`    | waiting for the worker (also between retries)                                                                                                                                                                                                                                                                                                                                        | no       |
+| `held`      | WhatsApp only: Meta accepted the template message but holds it (template pacing; `errorCode` `META_HELD_FOR_QUALITY_ASSESSMENT` or `META_PAUSED`). Not sent yet, not failed: the status webhook moves it to `sent`/`delivered`/`read` (timeline event `released`) or to `failed` with `META_132015` when Meta drops it, which then runs the fallback chain. Never resend it yourself | no       |
+| `sent`      | the provider accepted it                                                                                                                                                                                                                                                                                                                                                             | no       |
+| `delivered` | the provider reported delivery to the phone                                                                                                                                                                                                                                                                                                                                          | no       |
+| `read`      | the recipient opened it (WhatsApp and RCS, only with read receipts on)                                                                                                                                                                                                                                                                                                               | yes      |
+| `failed`    | not delivered (`errorCode`, e.g. `META_131026`, `TWILIO_63036`); the fallback chain may continue                                                                                                                                                                                                                                                                                     | yes      |
+| `uncertain` | the outcome is unknown (timeout after the request was written); never resent automatically                                                                                                                                                                                                                                                                                           | yes      |
+| `expired`   | `notAfter` passed before it could be sent                                                                                                                                                                                                                                                                                                                                            | yes      |
+| `discarded` | cancelled by an admin or `cancel(id)`                                                                                                                                                                                                                                                                                                                                                | yes      |
 
 Statuses only move forward: a late `delivered` after `read` is ignored. Retries: first try plus up to 3 retries after about 1, 5 and 15 minutes (±20 %), only when the provider provably did not accept the message. Outbound message content is removed once a message is delivered (privacy by design), so `conversations.history` shows the template key instead of the text for delivered messages.
 
@@ -323,22 +324,23 @@ module.exports = {
 
 `providers.mode: 'sandbox'` replaces every provider with an in-process fake: no network, no cost. Accounts still need format-valid credentials. Each send is accepted and its statuses are applied at once through the normal webhook path, decided by the recipient:
 
-| `SANDBOX_NUMBERS.` | Number           | Outcome                                                             |
-| ------------------ | ---------------- | ------------------------------------------------------------------- |
-| `delivered`        | `+4915550000001` | delivered (also every number not listed here)                       |
-| `read`             | `+4915550000002` | delivered, then read (WhatsApp and RCS)                             |
-| `notOnWhatsApp`    | `+4915550000003` | WhatsApp fails `META_131026`, the next channel delivers             |
-| `rcsNotCapable`    | `+4915550000004` | RCS fails `TWILIO_63036`, the next channel delivers                 |
-| `undelivered`      | `+4915550000005` | accepted, then failed on every channel                              |
-| `rejected`         | `+4915550000006` | refused at send time (`SANDBOX_REJECTED`)                           |
-| `uncertain`        | `+4915550000007` | timeout after the request was written (`uncertain`)                 |
-| `inactive`         | `+4915550000008` | HLR `active: false` (`NUMBER_INACTIVE` with `blockInactiveNumbers`) |
+| `SANDBOX_NUMBERS.` | Number           | Outcome                                                                   |
+| ------------------ | ---------------- | ------------------------------------------------------------------------- |
+| `delivered`        | `+4915550000001` | delivered (also every number not listed here)                             |
+| `read`             | `+4915550000002` | delivered, then read (WhatsApp and RCS)                                   |
+| `notOnWhatsApp`    | `+4915550000003` | WhatsApp fails `META_131026`, the next channel delivers                   |
+| `rcsNotCapable`    | `+4915550000004` | RCS fails `TWILIO_63036`, the next channel delivers                       |
+| `undelivered`      | `+4915550000005` | accepted, then failed on every channel                                    |
+| `rejected`         | `+4915550000006` | refused at send time (`SANDBOX_REJECTED`)                                 |
+| `uncertain`        | `+4915550000007` | timeout after the request was written (`uncertain`)                       |
+| `inactive`         | `+4915550000008` | HLR `active: false` (`NUMBER_INACTIVE` with `blockInactiveNumbers`)       |
+| `held`             | `+4915550000009` | WhatsApp: `held` (`META_HELD_FOR_QUALITY_ASSESSMENT`), no webhook follows |
 
 Telegram sends end as `sent`. Templates submitted to Meta or Twilio are approved at once. `sandbox.simulateInbound({ to | contactId, channel?, text?, buttonPayload?, buttonTitle?, replyTo?, location?, media?: { mime, size?, filename?, caption?, duration?, expired?, mismatch? }, providerMessageId? })` stores an inbound message (the same `providerMessageId` twice returns `{ duplicate: true }`) and generates a synthetic file of the given type and size for the media path. `strapi-plugin-magic-messagegate/testing` exports `SANDBOX_NUMBERS`, `sandboxConfig(extra)`, `drain(strapi)` and `signDelivery(secret, timestamp, body)`. A warning is logged at startup in sandbox mode.
 
 ## Outgoing webhook
 
-Settings → Outgoing webhook: an https URL (public host, no redirects; checked again before every delivery) and the events to forward: `message.received`, `message.status` (sent, delivered, read, failed, uncertain, expired), `media.ready`, `media.failed`. **Create signing secret** shows the secret once.
+Settings → Outgoing webhook: an https URL (public host, no redirects; checked again before every delivery) and the events to forward: `message.received`, `message.status` (held, sent, delivered, read, failed, uncertain, expired), `media.ready`, `media.failed`. **Create signing secret** shows the secret once.
 
 Each delivery is a POST with the JSON body `{ id, event, data, at }` (`data` is the event payload: ids, channel, status, codes; never phone numbers or text) and the headers `X-MessageGate-Event`, `X-MessageGate-Delivery`, `X-MessageGate-Timestamp` (unix seconds) and `X-MessageGate-Signature: v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`. A `2xx` answer ends it; otherwise it is retried after 1, 5 and 15 minutes, 1 and 6 hours (6 tries). Deliveries are rows claimed with a lease, so each one is sent by one process. Settings changes reach every process within about 3 seconds; events in that time use the previous settings. Verify like this:
 
@@ -368,6 +370,7 @@ No phone numbers, names or message text in any payload. Every event is emitted b
 | `messagegate.message.read`            | same                                                                                                 |
 | `messagegate.message.failed`          | same, `code` set                                                                                     |
 | `messagegate.message.uncertain`       | same, `code` set                                                                                     |
+| `messagegate.message.held`            | same, `code` `META_HELD_FOR_QUALITY_ASSESSMENT` or `META_PAUSED` (Meta template pacing)              |
 | `messagegate.message.expired`         | same, `code: 'DEADLINE_PASSED'`                                                                      |
 | `messagegate.message.discarded`       | same                                                                                                 |
 | `messagegate.message.fallback`        | `{ messageId, channel, templateKey, status: 'fallback', code, at }` (`channel` = next channel)       |

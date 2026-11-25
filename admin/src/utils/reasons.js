@@ -112,6 +112,16 @@ export function reasonText(t, code) {
       );
     case 'META_132000':
       return t('reason.META_132000', 'The number of template variables does not match the approved template.');
+    case 'META_HELD_FOR_QUALITY_ASSESSMENT':
+      return t(
+        'reason.META_HELD_FOR_QUALITY_ASSESSMENT',
+        'Meta is holding this template message for a quality check (template pacing). Meta sends it or drops it, usually within an hour.'
+      );
+    case 'META_PAUSED':
+      return t(
+        'reason.META_PAUSED',
+        'Meta paused the delivery of this template message (template pacing). Meta sends it later or drops it.'
+      );
     case 'META_132015':
       return t('reason.META_132015', 'Meta paused the template because of low quality.');
     case 'META_132016':

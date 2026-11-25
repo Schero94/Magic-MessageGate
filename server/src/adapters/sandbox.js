@@ -80,6 +80,10 @@ function outcome(provider, channel, to) {
       accountProblem: false,
     };
   }
+  if (scenario === 'held' && channel === 'whatsapp') {
+    // Template pacing (issue #18): accepted but held; the status webhook never comes in the sandbox.
+    return { ...accepted([]), held: true, code: 'META_HELD_FOR_QUALITY_ASSESSMENT' };
+  }
   if (scenario === 'notOnWhatsApp' && channel === 'whatsapp')
     return accepted([{ status: 'failed', code: 'META_131026' }]);
   if (scenario === 'rcsNotCapable' && channel === 'rcs') return accepted([{ status: 'failed', code: 'TWILIO_63036' }]);

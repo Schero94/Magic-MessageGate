@@ -80,7 +80,7 @@ function createAnalytics(ctx) {
         .groupBy('cost_category');
       const queue = await ctx
         .knex(T.messages)
-        .whereIn('status', ['queued', 'uncertain'])
+        .whereIn('status', ['queued', 'uncertain', 'held'])
         .select('status')
         .count({ total: '*' })
         .groupBy('status');

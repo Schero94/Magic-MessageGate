@@ -66,7 +66,9 @@ function listQuery(query = {}) {
     .object({
       page: z.coerce.number().int().min(1).max(2000).optional(),
       pageSize: z.coerce.number().int().min(1).max(100).optional(),
-      status: z.enum(['queued', 'sent', 'delivered', 'read', 'failed', 'uncertain', 'expired', 'discarded']).optional(),
+      status: z
+        .enum(['queued', 'held', 'sent', 'delivered', 'read', 'failed', 'uncertain', 'expired', 'discarded'])
+        .optional(),
       channel: channel.optional(),
       templateKey: z
         .string()
