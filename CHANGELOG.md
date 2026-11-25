@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [1.3.0](https://github.com/Schero94/Magic-MessageGate/compare/messagegate-v1.2.0...messagegate-v1.3.0) (2026-11-25)
+
+
+### Features
+
+* register the seven.io webhook on Test connection and hold messages Meta paces ([#21](https://github.com/Schero94/Magic-MessageGate/issues/21)) ([6f32d3a](https://github.com/Schero94/Magic-MessageGate/commit/6f32d3ac673ce73df46e2af8fe6f81c8816d4d73))
+
 
 ### Added
 
