@@ -1,3 +1,5 @@
+# Changelog
+
 ## [Unreleased]
 
 ### Fixed
@@ -10,10 +12,6 @@
 * Settings: "Discard changes" next to Save, with a confirmation, returns the form to the stored settings. Before, the only way back was leaving the page.
 * Settings cards are sorted so data settings come before integrations: Routing, Consent, Number lookup, Inbox and files, Data retention, then both webhook cards together ("Provider webhooks", renamed from "Webhooks" so it is not confused with "Outgoing webhook").
 * The settings subtitle says "number lookup", like the section.
-
-# Changelog
-
-## [Unreleased]
 
 ### Changed (provider contracts)
 
