@@ -100,7 +100,9 @@ const EdgeButton = styled(IconButton)`
  */
 export const SectionTabsList = ({ value, label, previousLabel, nextLabel, children }) => {
   const theme = useTheme();
-  const wide = useMediaQuery(theme.breakpoints.medium);
+  // Seven tabs need about 900px; from 768 to 1079 px they overflowed the content column
+  // (measured: the last tab ended at 791-823 px in a 768 px viewport), so the strip scrolls below large.
+  const wide = useMediaQuery(theme.breakpoints.large);
   const scroll = !wide;
   const listRef = useRef(null);
   const [edges, setEdges] = useState({ start: false, end: false });

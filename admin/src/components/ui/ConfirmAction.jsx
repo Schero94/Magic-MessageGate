@@ -1,6 +1,6 @@
 /* Mirrors plugin-io (strapi-community/plugin-io admin/src/components/ui/ConfirmAction.jsx): native Strapi Design System pattern. Keep in sync. */
 import { useRef, useState } from 'react';
-import { Button, Dialog } from '@strapi/design-system';
+import { Button, Dialog, IconButton } from '@strapi/design-system';
 import { ConfirmDialog } from '@strapi/strapi/admin';
 
 /**
@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@strapi/strapi/admin';
  * @param {boolean} [props.disabled] - Disables the trigger.
  * @param {'S' | 'M' | 'L'} [props.size] - Trigger size.
  * @param {() => HTMLElement | null} [props.getFallbackFocus] - Focus target when the trigger is disabled after the action.
+ * @param {boolean} [props.iconOnly] - Renders the trigger as a ghost `IconButton` (table row actions); `label` becomes its accessible name and tooltip, `startIcon` its icon.
  * @returns {JSX.Element} Trigger and dialog.
  */
 export const ConfirmAction = ({
@@ -33,6 +34,7 @@ export const ConfirmAction = ({
   disabled = false,
   size = 'M',
   getFallbackFocus,
+  iconOnly = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,9 +79,15 @@ export const ConfirmAction = ({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger>
-        <Button ref={triggerRef} variant={triggerVariant} startIcon={startIcon} disabled={disabled} size={size}>
-          {label}
-        </Button>
+        {iconOnly ? (
+          <IconButton ref={triggerRef} variant="ghost" label={label} disabled={disabled}>
+            {startIcon}
+          </IconButton>
+        ) : (
+          <Button ref={triggerRef} variant={triggerVariant} startIcon={startIcon} disabled={disabled} size={size}>
+            {label}
+          </Button>
+        )}
       </Dialog.Trigger>
       <ConfirmDialog
         title={title}

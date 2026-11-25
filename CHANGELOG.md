@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+* Templates: the edit and delete row actions are both icon buttons with the template name in their label, and both work with Enter and Space (a Design System table cell with two buttons swallowed those keys).
+* The section tab strip starts at the same left edge as the page title on phones and tablets (it used the desktop gutter at every width), and it scrolls below 1080 px instead of 768 px: from 768 to 1079 px the last tab ran past the viewport.
+
+### Changed
+
+* Settings: "Discard changes" next to Save, with a confirmation, returns the form to the stored settings. Before, the only way back was leaving the page.
+* Settings cards are sorted so data settings come before integrations: Routing, Consent, Number lookup, Inbox and files, Data retention, then both webhook cards together ("Provider webhooks", renamed from "Webhooks" so it is not confused with "Outgoing webhook").
+* The settings subtitle says "number lookup", like the section.
+
 ### Changed (provider contracts)
 
 - **Telegram contract snapshot updated to Bot API 10.5** (2026-11-22), regenerated with `npm run contract:specs`. Two 10.5 changes touch what MessageGate calls, and neither needs a code change:

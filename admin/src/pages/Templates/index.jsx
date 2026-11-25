@@ -209,7 +209,15 @@ export const TemplatesPage = () => {
                   <Typography textColor="neutral800">{tpl.version}</Typography>
                 </Td>
                 <Td onClick={(event) => event.stopPropagation()}>
-                  <Flex justifyContent="flex-end" gap={1}>
+                  {/* A DS grid cell with two buttons swallows Enter and Space (preventDefault in the
+                      cell's key handler); stop them here so both row actions work by keyboard. */}
+                  <Flex
+                    justifyContent="flex-end"
+                    gap={1}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+                    }}
+                  >
                     <IconButton
                       variant="ghost"
                       label={t('templates.edit', 'Edit {name}', { name: tpl.name })}
@@ -219,10 +227,9 @@ export const TemplatesPage = () => {
                     </IconButton>
                     {rbac.templates.manage ? (
                       <ConfirmAction
-                        label={t('common.delete', 'Delete')}
+                        iconOnly
+                        label={t('templates.deleteNamed', 'Delete {name}', { name: tpl.name })}
                         startIcon={<Trash />}
-                        size="S"
-                        triggerVariant="ghost"
                         title={t('templates.delete.title', 'Delete "{name}"?', { name: tpl.name })}
                         body={t(
                           'templates.delete.body',

@@ -51,7 +51,8 @@ const setPath = (obj, path, value) => {
 
 /**
  * Plugin settings: routing and fallback, consent, number lookup budget,
- * retention, and the webhook URLs with their verification status.
+ * inbox, retention, then both webhook cards together (provider webhook URLs,
+ * then the outgoing webhook). Save and "Discard changes" sit in the header.
  *
  * @returns {JSX.Element} Settings section.
  */
@@ -162,13 +163,31 @@ export const SettingsPage = () => {
   return (
     <SectionFrame
       title={t('settings.title', 'Settings')}
-      subtitle={t('settings.subtitle', 'Routing, consent, number checks, inbox, data retention and webhooks.')}
+      subtitle={t('settings.subtitle', 'Routing, consent, number lookup, inbox, data retention and webhooks.')}
       busy={isLoading}
       primaryAction={
         readOnly || !draft ? null : (
-          <Button startIcon={<Check />} onClick={save} loading={saving} disabled={!dirty}>
-            {t('common.save', 'Save')}
-          </Button>
+          // Discard sits left of Save, same size, as one action group (the header's
+          // secondaryAction slot renders next to the title, not with the actions).
+          <Flex gap={2}>
+            <ConfirmAction
+              label={t('settings.discard', 'Discard changes')}
+              triggerVariant="tertiary"
+              size="S"
+              disabled={!dirty || saving}
+              title={t('settings.discard.title', 'Discard changes?')}
+              body={t('settings.discard.body', 'The form goes back to the saved settings. Unsaved changes are lost.')}
+              confirmLabel={t('settings.discard', 'Discard changes')}
+              onConfirm={async () => {
+                setDraft(saved);
+                setErrors({});
+              }}
+              getFallbackFocus={() => document.querySelector('main h1')}
+            />
+            <Button startIcon={<Check />} onClick={save} loading={saving} disabled={!dirty}>
+              {t('common.save', 'Save')}
+            </Button>
+          </Flex>
         )
       }
     >
@@ -609,6 +628,92 @@ export const SettingsPage = () => {
           </SectionCard>
 
           <SectionCard
+            title={t('settings.retention', 'Data retention')}
+            subtitle={t('settings.retention.subtitle', 'Older data is deleted automatically every night.')}
+          >
+            <Grid.Root gap={4}>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <NumberField
+                  name="retention.messageDays"
+                  label={t('settings.retention.messages', 'Keep messages')}
+                  hint={t('settings.retention.messages.hint', 'Message contents and history. Statistics stay.')}
+                  unit={t('settings.unit.days', 'days')}
+                  error={errors['retention.messageDays']}
+                  value={draft.retention.messageDays}
+                  disabled={readOnly}
+                  onChange={(value) => set('retention.messageDays', value)}
+                />
+              </Grid.Item>
+              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
+                <NumberField
+                  name="retention.receiptDays"
+                  label={t('settings.retention.receipts', 'Keep raw webhook receipts')}
+                  hint={t('settings.retention.receipts.hint', 'Used to ignore duplicate provider callbacks.')}
+                  unit={t('settings.unit.days', 'days')}
+                  error={errors['retention.receiptDays']}
+                  value={draft.retention.receiptDays}
+                  disabled={readOnly}
+                  onChange={(value) => set('retention.receiptDays', value)}
+                />
+              </Grid.Item>
+            </Grid.Root>
+          </SectionCard>
+
+          <SectionCard
+            title={t('settings.webhooks', 'Provider webhooks')}
+            subtitle={t(
+              'settings.webhooks.subtitle',
+              'Providers report delivery, read receipts and replies to these URLs. Each request is verified with its signature.'
+            )}
+          >
+            {!data.publicUrl ? (
+              <Typography textColor="warning700">
+                {t(
+                  'settings.webhooks.noUrl',
+                  'Set server.url in config/server so MessageGate can build public webhook URLs.'
+                )}
+              </Typography>
+            ) : null}
+            {data.embeddedSignup?.webhookUrl ? (
+              <CopyField
+                name="webhook-meta-app"
+                label={t('settings.webhooks.metaApp', 'Meta app (Embedded Signup numbers)')}
+                value={data.embeddedSignup.webhookUrl}
+                hint={t(
+                  'settings.webhooks.metaApp.hint',
+                  'Meta App Dashboard > WhatsApp > Configuration, with the verify token from the server config.'
+                )}
+              />
+            ) : null}
+            {hooks.map((a) => (
+              <Flex key={a.id} direction="column" alignItems="stretch" gap={2}>
+                <Flex gap={2} wrap="wrap">
+                  <Typography fontWeight="semiBold">{a.name}</Typography>
+                  <ToneBadge tone={HEALTH_VARIANT[a.health?.status] || 'neutral'}>
+                    {
+                      {
+                        ok: t('accounts.health.ok', 'Connected'),
+                        error: t('accounts.health.error', 'Connection problem'),
+                        unknown: t('accounts.health.unknown', 'Not tested yet'),
+                      }[a.health?.status || 'unknown']
+                    }
+                  </ToneBadge>
+                </Flex>
+                <CopyField
+                  name={`webhook-${a.id}`}
+                  label={t('accounts.webhookUrl', 'Webhook URL')}
+                  value={a.webhookUrl}
+                />
+              </Flex>
+            ))}
+            {rbac.accounts.read && !hooks.length && data.publicUrl ? (
+              <Typography textColor="neutral600">
+                {t('settings.webhooks.none', 'Connect an account to get its webhook URL.')}
+              </Typography>
+            ) : null}
+          </SectionCard>
+
+          <SectionCard
             title={t('settings.hook', 'Outgoing webhook')}
             subtitle={t(
               'settings.hook.subtitle',
@@ -701,92 +806,6 @@ export const SettingsPage = () => {
                 ) : null}
               </Grid.Item>
             </Grid.Root>
-          </SectionCard>
-
-          <SectionCard
-            title={t('settings.retention', 'Data retention')}
-            subtitle={t('settings.retention.subtitle', 'Older data is deleted automatically every night.')}
-          >
-            <Grid.Root gap={4}>
-              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
-                <NumberField
-                  name="retention.messageDays"
-                  label={t('settings.retention.messages', 'Keep messages')}
-                  hint={t('settings.retention.messages.hint', 'Message contents and history. Statistics stay.')}
-                  unit={t('settings.unit.days', 'days')}
-                  error={errors['retention.messageDays']}
-                  value={draft.retention.messageDays}
-                  disabled={readOnly}
-                  onChange={(value) => set('retention.messageDays', value)}
-                />
-              </Grid.Item>
-              <Grid.Item col={6} xs={12} direction="column" alignItems="stretch">
-                <NumberField
-                  name="retention.receiptDays"
-                  label={t('settings.retention.receipts', 'Keep raw webhook receipts')}
-                  hint={t('settings.retention.receipts.hint', 'Used to ignore duplicate provider callbacks.')}
-                  unit={t('settings.unit.days', 'days')}
-                  error={errors['retention.receiptDays']}
-                  value={draft.retention.receiptDays}
-                  disabled={readOnly}
-                  onChange={(value) => set('retention.receiptDays', value)}
-                />
-              </Grid.Item>
-            </Grid.Root>
-          </SectionCard>
-
-          <SectionCard
-            title={t('settings.webhooks', 'Webhooks')}
-            subtitle={t(
-              'settings.webhooks.subtitle',
-              'Providers report delivery, read receipts and replies to these URLs. Each request is verified with its signature.'
-            )}
-          >
-            {!data.publicUrl ? (
-              <Typography textColor="warning700">
-                {t(
-                  'settings.webhooks.noUrl',
-                  'Set server.url in config/server so MessageGate can build public webhook URLs.'
-                )}
-              </Typography>
-            ) : null}
-            {data.embeddedSignup?.webhookUrl ? (
-              <CopyField
-                name="webhook-meta-app"
-                label={t('settings.webhooks.metaApp', 'Meta app (Embedded Signup numbers)')}
-                value={data.embeddedSignup.webhookUrl}
-                hint={t(
-                  'settings.webhooks.metaApp.hint',
-                  'Meta App Dashboard > WhatsApp > Configuration, with the verify token from the server config.'
-                )}
-              />
-            ) : null}
-            {hooks.map((a) => (
-              <Flex key={a.id} direction="column" alignItems="stretch" gap={2}>
-                <Flex gap={2} wrap="wrap">
-                  <Typography fontWeight="semiBold">{a.name}</Typography>
-                  <ToneBadge tone={HEALTH_VARIANT[a.health?.status] || 'neutral'}>
-                    {
-                      {
-                        ok: t('accounts.health.ok', 'Connected'),
-                        error: t('accounts.health.error', 'Connection problem'),
-                        unknown: t('accounts.health.unknown', 'Not tested yet'),
-                      }[a.health?.status || 'unknown']
-                    }
-                  </ToneBadge>
-                </Flex>
-                <CopyField
-                  name={`webhook-${a.id}`}
-                  label={t('accounts.webhookUrl', 'Webhook URL')}
-                  value={a.webhookUrl}
-                />
-              </Flex>
-            ))}
-            {rbac.accounts.read && !hooks.length && data.publicUrl ? (
-              <Typography textColor="neutral600">
-                {t('settings.webhooks.none', 'Connect an account to get its webhook URL.')}
-              </Typography>
-            ) : null}
           </SectionCard>
           {!readOnly ? <UnsavedBlocker saved={saved} draft={draft} /> : null}
         </>
